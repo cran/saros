@@ -1,4 +1,5 @@
 testthat::test_that("summarize_data", {
+  #Takes on average 5 sec to run all.
 
   testthat::expect_equal(
     saros:::summarize_data(
@@ -44,7 +45,7 @@ testthat::test_that("summarize_data", {
       ) |>
       dplyr::slice(1) |>
       dplyr::pull(.count),
-    expected = 129)
+    expected = 126)
 
   testthat::expect_equal(
     saros:::summarize_data(

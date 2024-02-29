@@ -1,12 +1,12 @@
 insert_obj_in_qmd <-
   function(element_name,
-           mesos_group = NULL,
+           index,
            filepath,
+           mesos_group = NULL,
            filepath_txt = NULL,
            caption = NULL,
            figure_height = 10,
            add_text = TRUE,
-           index,
            max_width_file = eval(formals(draft_report)$max_width_file),
            max_width_obj = eval(formals(draft_report)$max_width_obj),
            serialized_format = eval(formals(draft_report)$serialized_format)[1],
@@ -17,7 +17,7 @@ insert_obj_in_qmd <-
            call = rlang::caller_env()) {
 
     # Early returns
-    if(!rlang::is_string(filepath)) return("")
+    if(!is_string(filepath)) return("")
 
     if(stringi::stri_detect(element_name, fixed = "text")) {
       text <- tryCatch(serialize_read(filepath_txt, format = serialized_format)[[1]],

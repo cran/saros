@@ -9,12 +9,12 @@
 #' @return Character vector of valid names.
 list_available_element_types <-
   function(valid_only = TRUE) {
-    names(eval(formals(draft_report)$element_names)[if(valid_only) unname(eval(formals(draft_report)$element_names)) else TRUE])
-  }
+    eval(formals(draft_report)$element_names)
+}
 
 
 get_authors <- function(data, col) {
-  if(!rlang::is_null(data[[col]]) &&
+  if(!is.null(data[[col]]) &&
      !all(is.na(data[[col]]))) {
 
     if(is.factor(data[[col]])) {
@@ -441,9 +441,9 @@ col_to_binaries <- function(data, col,
 create_text_collapse <-
   function(text = NULL,
            last_sep = NULL) {
-    if(!rlang::is_string(last_sep)) last_sep <-
+    if(!is_string(last_sep)) last_sep <-
         eval(formals(draft_report)$translations)$last_sep
-    cli::ansi_collapse(text, last = last_sep)
+    cli::ansi_collapse(text, sep2 = last_sep, last = last_sep)
   }
 
 # are all elements of list x identical to each other?

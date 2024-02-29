@@ -42,7 +42,7 @@
 #
 #     hide_legend <-
 #       dplyr::n_distinct(data[[".category"]], na.rm = TRUE) == 2 &&
-#         !rlang::is_null(dots$colour_2nd_binary_cat)
+#         !is.null(dots$colour_2nd_binary_cat)
 #
 #     percentage <- dots$data_label %in% c("percentage", "percentage_bare")
 #     prop_family <- dots$data_label %in% c("percentage", "percentage_bare", "proportion")
@@ -104,7 +104,7 @@
 #       ) +
 #       ggplot2::theme_classic() +
 #       ggplot2::theme(
-#         text = ggiraph::element_text_interactive(family = dots$font_family),
+#         text = ggplot2::element_text(family = dots$font_family),
 #         axis.text.y = if (hide_axis_text) ggplot2::element_blank() else ggiraph::element_text_interactive(data_id = "axis.text.y"),
 #         plot.caption = ggiraph::element_text_interactive(data_id = "plot.caption", size = dots$main_font_size),
 #         legend.position = "bottom",
@@ -215,7 +215,7 @@
 #     }
 #
 #     if (dplyr::n_distinct(data_out[[".category"]], na.rm = dots$showNA == "never") == 2 &&
-#       !rlang::is_null(dots$colour_2nd_binary_cat)) {
+#       !is.null(dots$colour_2nd_binary_cat)) {
 #       data_out$.category <- forcats::fct_rev(data_out$.category)
 #     }
 #
@@ -228,7 +228,7 @@
 #         !!!dots
 #       )
 #
-#     if(!rlang::is_null(dots$label_separator)) {
+#     if(!is.null(dots$label_separator)) {
 #       indep_label <- unname(get_raw_labels(data = data, col_pos = indep_pos))
 #       attr(chart, "saros_caption") <-
 #         get_raw_labels(data = data, col_pos = dep_pos) %>%

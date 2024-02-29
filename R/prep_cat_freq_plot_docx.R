@@ -21,7 +21,7 @@ prep_cat_freq_plot_docx <-
                         caller_function = "cat_freq_plot")
 
     if(is.null(colour_palette)) {
-      n <- length(levels(data[[".category"]]))
+      n <- length(levels(data$.category))
       hues <- seq(15, 375, length = n + 1)
       colour_palette <- grDevices::hcl(h = hues, l = 65, c = 100)[1:n]
     }
@@ -34,7 +34,7 @@ prep_cat_freq_plot_docx <-
     hide_axis_text <-
       isTRUE(dots$hide_axis_text_if_single_variable) &&
       length(indep_vars) == 0 &&
-      dplyr::n_distinct(data[[".variable_label"]]) == 1
+      dplyr::n_distinct(data$.variable_label) == 1
 
     fp_text_settings <-
       lapply(colour_palette,
@@ -44,7 +44,7 @@ prep_cat_freq_plot_docx <-
                                 font.family = dots$font_family)
              })
 
-    fp_text_settings <- fp_text_settings[seq_len(dplyr::n_distinct(data[[".category"]], na.rm = TRUE))]
+    fp_text_settings <- fp_text_settings[seq_len(dplyr::n_distinct(data$.category, na.rm = TRUE))]
 
     blank_border <- officer::fp_border(style = "none")
 
@@ -166,11 +166,11 @@ embed_cat_freq_plot_docx <-
     # }
 
     if(length(indep_pos)==0) {
-      data_out[[".variable_label"]] <- forcats::fct_rev(data_out[[".variable_label"]])
+      data_out$.variable_label <- forcats::fct_rev(data_out$.variable_label)
     }
 
-    if(dplyr::n_distinct(data_out[[".category"]], na.rm = dots$showNA == "never") == 2 &&
-       !rlang::is_null(dots$colour_2nd_binary_cat)) {
+    if(dplyr::n_distinct(data_out$.category, na.rm = dots$showNA == "never") == 2 &&
+       !is.null(dots$colour_2nd_binary_cat)) {
       data_out$.category <- forcats::fct_rev(data_out$.category)
     }
 
@@ -184,7 +184,7 @@ embed_cat_freq_plot_docx <-
         call = rlang::caller_env(),
         !!!dots)
 
-    if(!rlang::is_null(dots$label_separator)) {
+    if(!is.null(dots$label_separator)) {
       indep_label <- unname(get_raw_labels(data = data, col_pos = indep_pos))
       attr(chart, "saros_caption") <-
           get_raw_labels(data = data, col_pos = dep_pos) %>%

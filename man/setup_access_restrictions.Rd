@@ -9,6 +9,7 @@ setup_access_restrictions(
   local_basepath,
   rel_path_base_to_parent_of_user_restricted_folder = file.path("Reports", "2022",
     "Mesos"),
+  warn = TRUE,
   local_main_password_path = ".main_htpasswd_public",
   username_folder_matching_df = NULL,
   universal_usernames = c("admin"),
@@ -24,6 +25,8 @@ setup_access_restrictions(
 \item{local_basepath}{String. Local folder for website, typically "_site".}
 
 \item{rel_path_base_to_parent_of_user_restricted_folder}{String, relative path from basepath to the folder where the restricted folders are located. (E.g. the "mesos"-folder)}
+
+\item{warn}{Flag. Whether to provide warning or error if paths do not exist.}
 
 \item{local_main_password_path}{String. Path to main file containing all usernames and passwords formatted with a colon between username and password.}
 

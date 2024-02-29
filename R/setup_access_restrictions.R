@@ -1,7 +1,7 @@
 
 read_main_password_file <- function(file) {
   utils::read.table(file = file, header = TRUE,
-                    sep=":", tryLogical = FALSE)
+                    sep=":")
 }
 
 
@@ -35,6 +35,7 @@ refer_main_password_file <- function(x=".main_htpasswd_private",
                                     log_rounds = 12,
                                     append_users = FALSE,
                                     password_input = c("prompt", "8", "10", "12", "16")) {
+
   password_input <- rlang::arg_match(password_input, multiple = FALSE)
   # Read in x, split it into usernames and plaintext passwords, encrypt the passwords, return a table
   if(!file.exists(x)) {
@@ -46,15 +47,20 @@ refer_main_password_file <- function(x=".main_htpasswd_private",
   lapply(usernames, FUN = function(user) {
     passwd <- master_table[master_table$username == user, "password"]
     if(length(passwd)>1) cli::cli_abort("Multiple entries found for username {user}.")
-    if(!rlang::is_string(passwd) || nchar(passwd)==0) {
+    if(!is_string(passwd) || nchar(passwd)==0) {
       if(isFALSE(append_users)) cli::cli_abort("Unable to find password for username {user}.")
       if(password_input == "prompt") {
+
         passwd <- rstudioapi::askForPassword(prompt = stringi::stri_c("Enter password for new user: ", user))
+        if(is.null(passwd)) return(NULL)
+
       } else {
         if(length(password_input)>1 ||
            is.na(as.integer(password_input)) ||
            as.integer(password_input)<1) {
+
           cli::cli_abort("Password input must be a positive integer stored as string.")
+
         }
         passwd <- sample(x = c(letters, LETTERS, 0:9),
                          size = as.integer(password_input),
@@ -77,14 +83,14 @@ refer_main_password_file <- function(x=".main_htpasswd_private",
 write_htpasswd_file <- function(x, file, header=FALSE) {
   utils::write.table(x = x, file = file,
                      quote = FALSE, sep = ":",
-                     col.names = if(rlang::is_true(header)) c("username", "password") else FALSE,
+                     col.names = if(isTRUE(header)) c("username", "password") else FALSE,
                      row.names = FALSE,
                      fileEncoding = "UTF-8")
 
 }
 
 obtain_mesos_folders_from_parent_folder <- function(x) {
-  if(!rlang::is_string(x) || !file.exists(x)) {
+  if(!is_string(x) || !file.exists(x)) {
     cli::cli_abort("{.arg x} does not exist: {.file {x}}")
   }
   list.dirs(path = x, full.names = FALSE, recursive = FALSE)
@@ -96,11 +102,13 @@ validate_access_folder_paths <- function(remote_basepath,
                                          rel_path_base_to_parent_of_user_restricted_folder =
                                            file.path( "Reports",
                                                       "2023",
-                                                      "Mesos")) {
+                                                      "Mesos"),
+                                         warn = FALSE) {
   rel_path_base_to_parent_of_user_restricted_folder <- file.path(local_basepath, rel_path_base_to_parent_of_user_restricted_folder)
+  warnabort_fn <- if(isTRUE(warn)) cli::cli_warn else cli::cli_abort
   for(path in c(remote_basepath, local_basepath, rel_path_base_to_parent_of_user_restricted_folder)) {
-    if(!rlang::is_string(path)) {
-      cli::cli_abort("{.arg {path}} must be a string.")
+    if(!is_string(path)) {
+      warnabort_fn("{.arg {path}} must be a string.")
     }
   }
 }
@@ -240,6 +248,7 @@ create__headers_file <- function(remote_basepath = "/home/", # Not used in this 
 #' @param remote_basepath String. Folder where site will be located if using FTP-server. Needed for .htaccess-files.
 #' @param local_basepath String. Local folder for website, typically "_site".
 #' @param rel_path_base_to_parent_of_user_restricted_folder String, relative path from basepath to the folder where the restricted folders are located. (E.g. the "mesos"-folder)
+#' @param warn Flag. Whether to provide warning or error if paths do not exist.
 #' @param local_main_password_path String. Path to main file containing all usernames and passwords formatted with a colon between username and password.
 #' @param username_folder_matching_df Data frame. If NULL (default), will use folder names as usernames. Otherwise, a data frame with two columns: "folder" and "username" where "folder" is the name of the folder and "username" is the username for that folder.
 #' @param universal_usernames Character vector. Usernames in local_main_htpasswd_path which always have access to folder
@@ -253,6 +262,7 @@ create__headers_file <- function(remote_basepath = "/home/", # Not used in this 
 setup_access_restrictions <- function(remote_basepath = "/home/",
                                       local_basepath,
                                       rel_path_base_to_parent_of_user_restricted_folder = file.path("Reports", "2022", "Mesos"),
+                                      warn = TRUE,
                                       local_main_password_path = ".main_htpasswd_public",
                                       username_folder_matching_df = NULL,
                                       universal_usernames = c("admin"),
@@ -269,7 +279,7 @@ setup_access_restrictions <- function(remote_basepath = "/home/",
                                  rel_path_base_to_parent_of_user_restricted_folder = rel_path_base_to_parent_of_user_restricted_folder)
   }
 
-  if(!rlang::is_null(username_folder_matching_df) &&
+  if(!is.null(username_folder_matching_df) &&
      (!inherits(username_folder_matching_df, "data.frame") ||
      !all(c("folder", "username") %in% colnames(username_folder_matching_df)))) {
     cli::cli_abort("{.arg username_folder_matching_df} must be a data.frame with columns 'folder' and 'username', not {.obj_type_friendly {username_folder_matching_df}}.")

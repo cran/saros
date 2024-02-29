@@ -3,11 +3,14 @@
 #' @param data Data.frame with original variable names.
 #' @param questions Data frame with questions obtained from `qualtRics::survey_questions()`
 #' @param reverse_stata_replacement If variable names have already been modified
+#' @param questions_var String, indicating column name in `questions` that indicates column names.
+#' @param questions_question String, indicating column name in `questions` for the full question.
 #' with full stops changed to underscores, this will reverse them for connection. Rarely needed. Defaults to FALSE.
 #'
 #' @return Data returned with only variable labels modified.
 #' @export
-attach_qualtrics_labels <- function(data, questions, reverse_stata_replacement=FALSE) {
+attach_qualtrics_labels <- function(data, questions, reverse_stata_replacement=FALSE,
+                                    questions_var="qname", questions_question="question") {
   if(!inherits(data, "data.frame")) cli::cli_abort("{.arg data} must be of type data.frame, not {.obj_type_friendly {data}}.")
   for(col in colnames(data)) {
 
@@ -26,9 +29,10 @@ attach_qualtrics_labels <- function(data, questions, reverse_stata_replacement=F
 
 
     if(!is.na(col2)) {
-      main_question <- unname(questions[questions$qname == col2, "question", drop=TRUE])
+      main_question <- unname(questions[questions[[questions_var]] == col2, questions_question, drop=TRUE])
       main_question <- stringi::stri_trim_both(main_question)
-      if(length(main_question)>0 && !is.na(main_question)) {
+      main_question <- stringi::stri_remove_empty_na(main_question)
+      if(length(main_question)>0 && !all(is.na(main_question))) {
         attr(data[[col]], "label") <- stringi::stri_c(main_question, " - ", attr(data[[col]], "label"), ignore_null = TRUE)
       }
     }
@@ -47,6 +51,7 @@ attach_qualtrics_labels <- function(data, questions, reverse_stata_replacement=F
 #' @param data data.frame or tibble
 #' @param sep String, separates main question from subquestion
 #' @param multi_sep_replacement String. If multiple sep are found, replace the first ones with this.
+#' @param replace_ascii_with_utf Flag. If TRUE, downloads a list from W3 used to convert html characters as ASCII to UTF8.
 #' @param questions Data frame with questions obtained from `qualtRics::survey_questions()`
 #'
 #' @return Identical data.frame as input, with only variable labels changed.
@@ -57,9 +62,11 @@ attach_qualtrics_labels <- function(data, questions, reverse_stata_replacement=F
 sanitize_labels <- function(data,
                             sep = " - ",
                             multi_sep_replacement = ": ",
+                            replace_ascii_with_utf = FALSE,
                             questions = NULL) {
 
   # scrape lookup table of accented char html codes, from the 2nd table on this page
+  if(isTRUE(replace_ascii_with_utf)) {
   ref_url <- 'http://www.w3schools.com/charsets/ref_html_8859.asp'
   cols <- c("Character", "Entity Name")
   char_table <- rvest::read_html(ref_url)
@@ -68,6 +75,7 @@ sanitize_labels <- function(data,
   char_table <- lapply(char_table, function(x) x[, cols])
   char_table <- do.call(rbind, char_table)
   char_table <- char_table[!duplicated(char_table[[cols[2]]]) & char_table[[cols[2]]] != "", ]
+  }
 
   # here's a test string loaded with different html accents
   # test_str <- '&Agrave; &Aacute; &Acirc; &Atilde; &Auml; &Aring; &AElig; &Ccedil; &Egrave; &Eacute; &Ecirc; &Euml; &Igrave; &Iacute; &Icirc; &Iuml; &ETH; &Ntilde; &Ograve; &Oacute; &Ocirc; &Otilde; &Ouml; &times; &Oslash; &Ugrave; &Uacute; &Ucirc; &Uuml; &Yacute; &THORN; &szlig; &agrave; &aacute; &acirc; &atilde; &auml; &aring; &aelig; &ccedil; &egrave; &eacute; &ecirc; &euml; &igrave; &iacute; &icirc; &iuml; &eth; &ntilde; &ograve; &oacute; &ocirc; &otilde; &ouml; &divide; &oslash; &ugrave; &uacute; &ucirc; &uuml; &yacute; &thorn; &yuml;'
@@ -77,20 +85,18 @@ sanitize_labels <- function(data,
 
   data <- lapply(rlang::set_names(colnames(data)), FUN = function(var) {
     label <- attr(data[[var]], "label")
-    if(rlang::is_string(label)) {
-      for(i in nrow(char_table)) {
-        label <- stringi::stri_replace_all_fixed(str = label,
-                                                 pattern = char_table[i, cols[2], drop=TRUE],
-                                                 replacement = char_table[i, cols[1], drop=TRUE])
-      }
 
-      if(!rlang::is_null(questions) &&
+    if(is_string(label)) {
+
+
+      # Replace references with those provided in questions, if any
+      if(!is.null(questions) &&
          is.data.frame(questions) &&
-         colnames(questions) == c("qid", "qname", "question", "force_resp")) {
+         colnames(questions) == c("qid", "questions_var", "question", "force_resp")) {
         reference_id <- stringi::stri_match_all_regex(label,
                                                       pattern = "\\$\\{q://([[:alnum:]]+)/ChoiceGroup/SelectedChoices\\}")[[1]][1,2]
-        reference_var <- questions[questions$qid == reference_id, "qname"]
-        if(rlang::is_string(reference_var) && !is.na(reference_var) &&
+        reference_var <- questions[questions$qid == reference_id, "questions_var"]
+        if(is_string(reference_var) && !is.na(reference_var) &&
            any(reference_var %in% colnames(data))) {
           reference_values <- unique(data[[reference_var]])
           reference_values <- reference_values[!is.na(reference_values)]
@@ -101,6 +107,15 @@ sanitize_labels <- function(data,
                                                  replacement = reference_values)
         }
       }
+
+      if(isTRUE(replace_ascii_with_utf)) {
+        for(i in seq_len(nrow(char_table))) {
+          label <- stringi::stri_replace_all_fixed(str = label,
+                                                   pattern = char_table[i, cols[2], drop=TRUE],
+                                                   replacement = char_table[i, cols[1], drop=TRUE])
+        }
+      }
+
       label <- stringi::stri_replace_all_regex(label, pattern = "- Selected Choice ", replacement = "- ")
       label <- stringi::stri_replace_all_regex(label, pattern = "<.+?>|\\[.*\\]| - tekst", replacement = "")
       label <- stringi::stri_replace_all_regex(label, pattern = "\\$\\{[[:alnum:]]+[^[:alnum:]]([[:alnum:]]+)\\}", replacement = "$1")
