@@ -15,12 +15,11 @@ get_colour_palette(
 )
 }
 \arguments{
-\item{data}{\emph{Survey data}
+\item{data}{\emph{Your data.frame/tibble or srvyr-object (experimental)}
 
-\verb{obj:<data.frame>|obj:<tbl_df>} // Required
+\code{data.frame} // \emph{required}
 
-A data frame (or a srvyr-object) with the columns specified in the
-chapter_overview 'dep_cat', etc columns.}
+The data to be used for plotting.}
 
 \item{col_pos}{Character vector of column names for which colours will be found.}
 
@@ -34,7 +33,7 @@ User-supplied default palette, excluding \code{colour_na}.}
 
 \verb{scalar<character>} // \emph{default:} \code{NULL} (\code{optional})
 
-Colour as a single string for NA values.}
+Colour as a single string for NA values, if showNA is "ifany" or "always".}
 
 \item{categories_treated_as_na}{\emph{NA categories}
 
@@ -55,8 +54,4 @@ A colour set as character vector, where \code{NA} has the \code{colour_na}, and 
 Possibly using colour_palette_nominal if available. If not sufficient, uses a set
 palette from RColorBrewer.
 }
-\examples{
-get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"))
-get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"),
-                  colour_palette_nominal = c("red", "blue", "orange"))
-}
+\keyword{internal}

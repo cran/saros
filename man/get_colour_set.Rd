@@ -35,13 +35,13 @@ User-supplied default palette, excluding \code{colour_na}.}
 
 \verb{scalar<character>} // \emph{default:} \code{NULL} (\code{optional})
 
-Colour as a single string for NA values.}
+Colour as a single string for NA values, if showNA is "ifany" or "always".}
 
 \item{colour_2nd_binary_cat}{\emph{Colour for second binary category}
 
 \verb{scalar<character>} // \emph{default:} \code{"#ffffff"} (\code{optional})
 
-Colour for second category in binary variables. Often useful to hide this.}
+Colour for the second category in binary variables. Often useful to hide this.}
 
 \item{ordinal}{\verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
@@ -66,6 +66,4 @@ A colour set as character vector, where \code{NA} has the \code{colour_na}, and 
 Possibly using colour_palette_nominal if available. If not sufficient, uses a set
 palette from RColorBrewer.
 }
-\examples{
-get_colour_set(x=1:4)
-}
+\keyword{internal}

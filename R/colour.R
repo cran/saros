@@ -6,10 +6,9 @@
 #' @param x Character vector of colours in hex-format.
 #'
 #' @return Logical, or error.
-#' @export
+#' @keywords internal
 #'
-#' @examples
-#' is_colour(c("#ff00ff", "#010101"))
+# is_colour(c("#ff00ff", "#010101"))
 is_colour <- function(x) {
   if(!is.character(x)) return(FALSE)
   vapply(x, function(X) {
@@ -25,10 +24,9 @@ is_colour <- function(x) {
 #' @param hex_code Colour in hex-format.
 #'
 #' @return Colours in hex-format, either black or white.
-#' @export
+#' @keywords internal
 #'
-#' @examples
-#' hex_bw("#0dadfd")
+# hex_bw("#0dadfd")
 hex_bw <- function(hex_code) {
 
   rgb_conv <-
@@ -36,11 +34,11 @@ hex_bw <- function(hex_code) {
       ifelse(.x / 255 <= 0.04045,
              .x * 12.92 / 255,
              ((.x / 255 + 0.055) / 1.055) ^ 2.4)
-    }) %>%
-    unlist() %>%
-    matrix(ncol = length(hex_code), byrow = FALSE) %>%
-    sweep(., MARGIN = 1, STATS = c(0.2126, 0.7152, 0.0722), FUN = `*`) %>%
-    apply(., MARGIN = 2, FUN = sum)
+    }) |>
+    unlist() |>
+    matrix(ncol = length(hex_code), byrow = FALSE) |>
+    sweep(MARGIN = 1, STATS = c(0.2126, 0.7152, 0.0722), FUN = `*`) |>
+    apply(MARGIN = 2, FUN = sum)
 
   hex <- ifelse(rgb_conv > 0.179,
                 "#000000",
@@ -98,8 +96,8 @@ get_remaining_colours <- function(user_colour_set,
 #' Possibly using colour_palette_nominal if available. If not sufficient, uses a set
 #'     palette from RColorBrewer.
 #'
-#' @inheritParams draft_report
-#' @inheritParams summarize_data
+#' @inheritParams makeme
+#' @inheritParams summarize_cat_cat_data
 #' @param x Vector for which colours will be found.
 #' @param colour_palette_nominal,colour_palette_ordinal *User specified colour set*
 #'
@@ -120,9 +118,7 @@ get_remaining_colours <- function(user_colour_set,
 #'  Is palette ordinal?
 #'
 #' @return A colour set as character vector, where `NA` has the `colour_na`, and the rest are taken from colour_palette_nominal if available.
-#' @export
-#' @examples
-#' get_colour_set(x=1:4)
+#' @keywords internal
 get_colour_set <-
   function(x,
            common_data_type = "factor",
@@ -183,8 +179,8 @@ get_colour_set <-
 #' Possibly using colour_palette_nominal if available. If not sufficient, uses a set
 #'     palette from RColorBrewer.
 #'
-#' @inheritParams draft_report
-#' @inheritParams summarize_data
+#' @inheritParams makeme
+#' @inheritParams summarize_cat_cat_data
 #' @param col_pos Character vector of column names for which colours will be found.
 #' @param colour_palette_nominal,colour_palette_ordinal *User specified colour set*
 #'
@@ -193,11 +189,11 @@ get_colour_set <-
 #'   User-supplied default palette, excluding `colour_na`.
 #'
 #' @return A colour set as character vector, where `NA` has the `colour_na`, and the rest are taken from colour_palette_nominal if available.
-#' @export
-#' @examples
-#' get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"))
-#' get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"),
-#'                   colour_palette_nominal = c("red", "blue", "orange"))
+#' @keywords internal
+#'
+# get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"))
+# get_colour_palette(ex_survey, col_pos=c("b_1", "b_2"),
+#                   colour_palette_nominal = c("red", "blue", "orange"))
 get_colour_palette <-
   function(
     data,

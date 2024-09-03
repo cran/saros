@@ -35,8 +35,8 @@ get_block_caption <-
 
 
       main_question <-
-        get_raw_labels(data = data, col_pos = cols_pos) %>%
-        get_main_question2(label_separator = label_separator)
+        get_raw_labels(data = data, col_pos = cols_pos) |>
+        get_main_question(label_separator = label_separator)
 
       caption_style <-
         if(!is.null(caption_style)) caption_style else "Normal"

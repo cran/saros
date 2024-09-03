@@ -1,9 +1,10 @@
-testthat::test_that("summarize_data", {
+testthat::test_that("summarize_cat_cat_data", {
   #Takes on average 5 sec to run all.
+  library(saros)
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
 
         data_label = "percentage_bare",
@@ -14,13 +15,13 @@ testthat::test_that("summarize_data", {
         data_label_decimal_symbol=".",
         digits = 0
       ) |>
-      dplyr::filter(.variable_label == "Agreement #1", .category == "No") |>
+      dplyr::filter(.variable_label == "Do you consent to the following? - Agreement #1", .category == "No") |>
       dplyr::pull(.data_label),
     expected = "60")
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
 
       showNA = "never",
@@ -34,8 +35,8 @@ testthat::test_that("summarize_data", {
     expected = 166)
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("b_", 1:3),
 
       showNA = "never",
@@ -48,8 +49,8 @@ testthat::test_that("summarize_data", {
     expected = 126)
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("b_", 1:3),
 
         showNA = "never",
@@ -65,8 +66,8 @@ testthat::test_that("summarize_data", {
     expected = .53666667)
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("b_", 1:3),
 
       showNA = "never",
@@ -80,8 +81,8 @@ testthat::test_that("summarize_data", {
     expected = "9.3%")
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
 
         showNA = "never",
@@ -95,8 +96,8 @@ testthat::test_that("summarize_data", {
     "51.9%")
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
 
         showNA = "never",
@@ -113,8 +114,8 @@ testthat::test_that("summarize_data", {
 
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
       indep = "x1_sex",
 
@@ -130,8 +131,8 @@ testthat::test_that("summarize_data", {
     expected = 64)
 
   testthat::expect_equal(
-    saros:::summarize_data(
-      data = saros::ex_survey,
+    saros:::summarize_cat_cat_data(
+      data = ex_survey,
       dep = paste0("a_", 1:9),
       indep = c("x1_sex", "x2_human", "f_uni"),
 
@@ -153,12 +154,12 @@ testthat::test_that("summarize_data", {
 })
 
 
-testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 0 indep-col", {
+testthat::test_that("crosstable srvyr gives same output as regular tbl with 0 indep-col", {
   suppressMessages(library(dplyr))
   suppressMessages(library(srvyr))
   x <-
-    saros::ex_survey %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
 
                            sort_by = c("A lot", "A bit"),
                            digits = 2,
@@ -172,9 +173,9 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 0 i
     ) |>
     arrange(dplyr::pick(tidyselect::everything()))
   x_srv <-
-    saros::ex_survey %>%
-    srvyr::as_survey(strata = f_uni) %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    srvyr::as_survey(strata = f_uni) |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
 
                            sort_by = c("A lot", "A bit"),
                            digits = 2,
@@ -190,8 +191,8 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 0 i
 
 
 
-  testthat::expect_equal(object = x %>%
-                           dplyr::slice(1) %>%
+  testthat::expect_equal(object = x |>
+                           dplyr::slice(1) |>
                            dplyr::pull(.data$.proportion),
                          expected = .43)
 
@@ -230,12 +231,12 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 0 i
                          expected = dplyr::pull(x, .data[[".sum_value"]]))
 })
 
-testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 1 indep-col", {
+testthat::test_that("crosstable srvyr gives same output as regular tbl with 1 indep-col", {
   suppressMessages(library(dplyr))
   suppressMessages(library(srvyr))
   x <-
-    saros::ex_survey %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
                            indep = "x1_sex",
 
                            sort_by = c("A lot", "A bit"),
@@ -249,9 +250,9 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 1 i
     ) |>
     arrange(dplyr::pick(tidyselect::everything()))
   x_srv <-
-    saros::ex_survey %>%
-    srvyr::as_survey(strata = f_uni) %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    srvyr::as_survey(strata = f_uni) |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
                            indep = "x1_sex",
 
                            sort_by = c("A lot", "A bit"),
@@ -305,12 +306,12 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 1 i
 })
 
 
-testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 2 indep-col", {
+testthat::test_that("crosstable srvyr gives same output as regular tbl with 2 indep-col", {
   suppressMessages(library(dplyr))
   suppressMessages(library(srvyr))
   x <-
-    saros::ex_survey %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
                            indep = c("x1_sex", "x2_human"),
 
                            sort_by = c("A lot", "A bit"),
@@ -324,9 +325,9 @@ testthat::test_that("crosstable3 srvyr gives same output as regular tbl with 2 i
     ) |>
     arrange(dplyr::pick(tidyselect::everything()))
   x_srv <-
-    saros::ex_survey %>%
-    srvyr::as_survey(strata = f_uni) %>%
-    saros:::summarize_data(dep = paste0("b_", 1:3),
+    ex_survey |>
+    srvyr::as_survey(strata = f_uni) |>
+    saros:::summarize_cat_cat_data(dep = paste0("b_", 1:3),
                            indep = c("x1_sex", "x2_human"),
 
                            sort_by = c("A lot", "A bit"),

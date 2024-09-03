@@ -27,6 +27,4 @@ Selected set of vector.
 \description{
 Useful for identifying which categories are to be collected.
 }
-\examples{
-subset_vector(vec=1:7, set=".mid_lower")
-}
+\keyword{internal}
