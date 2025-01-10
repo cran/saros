@@ -1,7 +1,7 @@
 Type: Package
 Package: saros
 Title: Semi-Automatic Reporting of Ordinary Surveys
-Version: 1.2.0
+Version: 1.5.0
 Authors@R: c(
     person(given = "Stephan", 
            family = "Daus", 
@@ -34,20 +34,22 @@ License: MIT + file LICENSE
 URL: https://nifu-no.github.io/saros/, https://github.com/NIFU-NO/saros
 BugReports: https://github.com/NIFU-NO/saros/issues
 Depends: R (>= 4.2.0)
-Imports: lifecycle, grDevices, cli, utils, vctrs, glue, dplyr, tidyr,
-        tidyselect, rlang, stringi, forcats, ggplot2, ggiraph, mschart,
-        officer, fs
-Suggests: covr, srvyr, writexl, haven, readr, labelled, testthat (>=
-        3.0.0), tibble, withr, spelling, vdiffr
+Imports: cli, dplyr, forcats, fs, ggiraph, ggplot2, glue, grDevices,
+        lifecycle, mschart, officer, rlang, stringi, tidyr, tidyselect,
+        utils, vctrs
+Suggests: covr, haven, labelled, quarto, knitr, readr, scales,
+        spelling, srvyr, testthat (>= 3.0.0), tibble, vdiffr, withr,
+        writexl
 Config/testthat/edition: 3
 Encoding: UTF-8
 RoxygenNote: 7.3.2
 Language: en-US
+VignetteBuilder: quarto
 Config/Needs/website: rmarkdown
 Config/testthat/parallel: true
 LazyData: true
 NeedsCompilation: no
-Packaged: 2024-09-03 06:25:40 UTC; py128
+Packaged: 2025-01-10 15:49:55 UTC; py128
 Author: Stephan Daus [aut, cre, cph] (<https://orcid.org/0000-0003-0230-6997>),
   Julia Silge [ctb] (Author of internal scale_x_reordered),
   David Robinson [ctb] (Author of internal scale_x_reordered),
@@ -55,4 +57,4 @@ Author: Stephan Daus [aut, cre, cph] (<https://orcid.org/0000-0003-0230-6997>),
     (NIFU) [fnd],
   Kristiania University College [fnd]
 Repository: CRAN
-Date/Publication: 2024-09-03 07:40:02 UTC
+Date/Publication: 2025-01-10 16:20:01 UTC

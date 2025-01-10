@@ -14,6 +14,8 @@ summarize_cat_cat_data(
   sort_by = ".upper",
   data_label = c("percentage_bare", "percentage", "proportion", "count"),
   digits = 0,
+  add_n_to_dep_label = FALSE,
+  add_n_to_indep_label = FALSE,
   add_n_to_label = FALSE,
   add_n_to_category = FALSE,
   hide_label_if_prop_below = 0.01,
@@ -21,8 +23,8 @@ summarize_cat_cat_data(
   categories_treated_as_na = NULL,
   label_separator = NULL,
   descend = FALSE,
-  variables_always_at_bottom = NULL,
-  variables_always_at_top = NULL,
+  labels_always_at_bottom = NULL,
+  labels_always_at_top = NULL,
   translations = list(),
   call = rlang::caller_env()
 )
@@ -68,6 +70,7 @@ of ordered factors is always respected in output. Unordered factors will be
 reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 
 \describe{
+\item{NULL}{No sorting.}
 \item{".top"}{The proportion for the highest category available in the variable.}
 \item{".upper"}{The sum of the proportions for the categories above the middle category.}
 \item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
@@ -75,7 +78,8 @@ reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 \item{".lower"}{The sum of the proportions for the categories below the middle category.}
 \item{".bottom"}{The proportions for the lowest category available in the variable.}
 \item{".variable_label"}{Sort by the variable labels.}
-\item{".id"}{Sort by the variable names.}
+\item{".variable_name"}{Sort by the variable names.}
+\item{".variable_position"}{Sort by the variable position in the supplied data frame.}
 \item{".by_group"}{The groups of the by argument.}
 \item{character()}{Character vector of category labels to sum together.}
 }}
@@ -92,7 +96,19 @@ One of "proportion", "percentage", "percentage_bare", "count", "mean", or "media
 
 Number of decimal places.}
 
-\item{add_n_to_label}{\emph{Add N= to the variable label}
+\item{add_n_to_dep_label, add_n_to_indep_label}{\emph{Add N= to the variable label}
+
+\verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
+
+For some plots and tables it is useful to attach the \code{"N="} to the end of the label of
+the dependent and/or independent variable.
+Whether it is \code{N} or \code{N_valid} depends on your \code{showNA}-setting. See also
+\code{translations$add_n_to_dep_label_prefix},
+\code{translations$add_n_to_dep_label_suffix},
+\code{translations$add_n_to_indep_label_prefix},
+\code{translations$add_n_to_indep_label_suffix}.}
+
+\item{add_n_to_label}{\emph{Add N= to the variable label of both dep and indep}
 
 \verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
@@ -144,7 +160,7 @@ Separator for main question from sub-question.}
 Reverse sorting of \code{sort_by} in figures and tables. See \code{arrange_section_by}
 for sorting of report sections.}
 
-\item{variables_always_at_top, variables_always_at_bottom}{\emph{Top/bottom variables}
+\item{labels_always_at_top, labels_always_at_bottom}{\emph{Top/bottom variables}
 
 \verb{vector<character>} // \emph{default:} \code{NULL} (\code{optional})
 
@@ -163,7 +179,10 @@ A list of translations where the name is the code and the value is the translati
 Both the absolute and relative folderpaths are required, as strings.}
 }
 \value{
-Dataset
+Dataset with the columns: \code{.variable_name}, \code{.variable_label}, \code{.category},
+\code{.count}, \code{.count_se}, \code{.count_per_dep}, \code{.count_per_indep_group}, \code{.proportion}, \code{.proportion_se},
+\code{.mean}, \code{.mean_se}, indep-variable(s), \code{.data_label}, \code{.comb_categories}, \code{.sum_value},
+\code{.variable_label_prefix}
 }
 \description{
 Summarize a survey dataset for use in tables and graphs

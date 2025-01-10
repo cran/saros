@@ -23,11 +23,14 @@ makeme(
   hide_for_crowd_if_cell_n_below = 0,
   hide_for_all_crowds_if_hidden_for_crowd = NULL,
   hide_indep_cat_for_all_crowds_if_hidden_for_crowd = FALSE,
+  add_n_to_dep_label = FALSE,
+  add_n_to_indep_label = FALSE,
   add_n_to_label = FALSE,
   add_n_to_category = FALSE,
   totals = FALSE,
   categories_treated_as_na = NULL,
   label_separator = " - ",
+  error_on_duplicates = TRUE,
   showNA = c("ifany", "always", "never"),
   data_label = c("percentage_bare", "percentage", "proportion", "count"),
   html_interactive = TRUE,
@@ -41,16 +44,20 @@ makeme(
   strip_width = 25,
   sort_by = ".upper",
   descend = TRUE,
-  variables_always_at_top = NULL,
-  variables_always_at_bottom = NULL,
+  labels_always_at_top = NULL,
+  labels_always_at_bottom = NULL,
   table_wide = TRUE,
   table_main_question_as_header = FALSE,
+  n_categories_limit = 12,
   translations = list(last_sep = " and ", table_heading_N = "Total (N)",
-    add_n_to_label_prefix = " (N = ", add_n_to_label_suffix = ")",
-    add_n_to_category_prefix = " (N = [", add_n_to_category_infix = ",",
-    add_n_to_category_suffix = "])", by_total = "Everyone", sigtest_variable_header_1 =
-    "Var 1", sigtest_variable_header_2 = "Var 2", crowd_all = "All", crowd_target =
-    "Target", crowd_others = "Others"),
+    table_heading_data_label = "\%", add_n_to_dep_label_prefix = " (N = ",
+    add_n_to_dep_label_suffix = ")", add_n_to_indep_label_prefix = " (N = ",
+    add_n_to_indep_label_suffix = ")", add_n_to_label_prefix = " (N = ",
+    add_n_to_label_suffix = ")", add_n_to_category_prefix = " (N = [",
+    add_n_to_category_infix = ",", add_n_to_category_suffix = "])", by_total =
+    "Everyone", sigtest_variable_header_1 = "Var 1", sigtest_variable_header_2 = "Var 2",
+    crowd_all = "All", 
+     crowd_target = "Target", crowd_others = "Others"),
   plot_height = 15,
   colour_palette = NULL,
   colour_2nd_binary_cat = "#ffffff",
@@ -79,7 +86,7 @@ Columns in \code{data}. \code{dep} is compulsory.}
 
 \item{type}{\emph{Kind of output}
 
-\verb{scalar<character>} // \emph{default:} \code{"prop_plot"} (\code{optional})
+\verb{scalar<character>} // \emph{default:} \code{"cat_plot_html"} (\code{optional})
 
 For a list of registered types in your session, use \code{get_makeme_types()}.}
 
@@ -91,7 +98,7 @@ Arguments forwarded to the corresponding functions that create the elements.}
 
 \item{require_common_categories}{\emph{Check common categories}
 
-\verb{scalar<logical>} // \emph{default:} \code{NULL} (\code{optional})
+\verb{scalar<logical>} // \emph{default:} \code{TRUE} (\code{optional})
 
 Whether to check if all items share common categories.}
 
@@ -174,7 +181,19 @@ crowds specified in \code{hide_for_all_crowds_if_hidden_for_crowd}? This is usef
 \code{indep} is academic disciplines, \code{mesos_var} is institutions, and a specific
 institution is not interested in seeing academic disciplines they do not offer themselves.}
 
-\item{add_n_to_label}{\emph{Add N= to the variable label}
+\item{add_n_to_dep_label, add_n_to_indep_label}{\emph{Add N= to the variable label}
+
+\verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
+
+For some plots and tables it is useful to attach the \code{"N="} to the end of the label of
+the dependent and/or independent variable.
+Whether it is \code{N} or \code{N_valid} depends on your \code{showNA}-setting. See also
+\code{translations$add_n_to_dep_label_prefix},
+\code{translations$add_n_to_dep_label_suffix},
+\code{translations$add_n_to_indep_label_prefix},
+\code{translations$add_n_to_indep_label_suffix}.}
+
+\item{add_n_to_label}{\emph{Add N= to the variable label of both dep and indep}
 
 \verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
@@ -212,6 +231,13 @@ Categories that should be treated as NA.}
 \verb{scalar<character>} // \emph{default:} \code{NULL} (\code{optional})
 
 Separator for main question from sub-question.}
+
+\item{error_on_duplicates}{\emph{Error or warn on duplicate labels}
+
+\verb{scalar<logical>} // \emph{default:} \code{TRUE} (\code{optional})
+
+Whether to abort (\code{TRUE}) or warn (\code{FALSE}) if the same label (suffix) is
+used across multiple variables.}
 
 \item{showNA}{\emph{Show NA categories}
 
@@ -283,6 +309,7 @@ of ordered factors is always respected in output. Unordered factors will be
 reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 
 \describe{
+\item{NULL}{No sorting.}
 \item{".top"}{The proportion for the highest category available in the variable.}
 \item{".upper"}{The sum of the proportions for the categories above the middle category.}
 \item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
@@ -290,7 +317,8 @@ reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 \item{".lower"}{The sum of the proportions for the categories below the middle category.}
 \item{".bottom"}{The proportions for the lowest category available in the variable.}
 \item{".variable_label"}{Sort by the variable labels.}
-\item{".id"}{Sort by the variable names.}
+\item{".variable_name"}{Sort by the variable names.}
+\item{".variable_position"}{Sort by the variable position in the supplied data frame.}
 \item{".by_group"}{The groups of the by argument.}
 \item{character()}{Character vector of category labels to sum together.}
 }}
@@ -302,7 +330,7 @@ reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 Reverse sorting of \code{sort_by} in figures and tables. See \code{arrange_section_by}
 for sorting of report sections.}
 
-\item{variables_always_at_top, variables_always_at_bottom}{\emph{Top/bottom variables}
+\item{labels_always_at_top, labels_always_at_bottom}{\emph{Top/bottom variables}
 
 \verb{vector<character>} // \emph{default:} \code{NULL} (\code{optional})
 
@@ -319,6 +347,13 @@ Whether to pivot table wider.}
 \verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
 Whether to include the main question as a header in the table.}
+
+\item{n_categories_limit}{\emph{Limit for cat_table_ wide format}
+
+\verb{scalar<integer>} // \emph{default:} \code{12} (\code{optional})
+
+If there are more than this number of categories in the categorical variable,
+cat_table_* will have a long format instead of wide format.}
 
 \item{translations}{\emph{Localize your output}
 
@@ -382,22 +417,34 @@ ggplot-object, optionally an extended ggplot object with ggiraph features.
 This function allows embedding of interactive or static plots based on various types of data using tidyselect syntax for variable selection.
 }
 \examples{
-makeme(data = ex_survey,
-       dep = b_1:b_3)
-makeme(data = ex_survey,
-       dep = b_1, indep = x1_sex)
-makeme(data = ex_survey,
-       dep = b_1:b_3, indep = c(x1_sex, x2_human),
-       type = "sigtest_table_html")
-makeme(data = ex_survey,
-       dep = b_1, indep = x1_sex,
-       type = "cat_prop_plot_docx")
-makeme(data = ex_survey,
-       dep = p_1:p_4, indep = x2_human,
-       type = "cat_table_html")
-makeme(data = ex_survey,
-       dep = b_1:b_3,
-       crowd = c("target", "others", "all"),
-       mesos_var = "f_uni",
-       mesos_group = "Uni of A")
+makeme(
+  data = ex_survey,
+  dep = b_1:b_3
+)
+makeme(
+  data = ex_survey,
+  dep = b_1, indep = x1_sex
+)
+makeme(
+  data = ex_survey,
+  dep = b_1:b_3, indep = c(x1_sex, x2_human),
+  type = "sigtest_table_html"
+)
+makeme(
+  data = ex_survey,
+  dep = b_1, indep = x1_sex,
+  type = "cat_prop_plot_docx"
+)
+makeme(
+  data = ex_survey,
+  dep = p_1:p_4, indep = x2_human,
+  type = "cat_table_html"
+)
+makeme(
+  data = ex_survey,
+  dep = b_1:b_3,
+  crowd = c("target", "others", "all"),
+  mesos_var = "f_uni",
+  mesos_group = "Uni of A"
+)
 }
