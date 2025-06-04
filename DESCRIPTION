@@ -1,7 +1,7 @@
 Type: Package
 Package: saros
 Title: Semi-Automatic Reporting of Ordinary Surveys
-Version: 1.5.3
+Version: 1.5.4
 Authors@R: c(
     person(given = "Stephan", 
            family = "Daus", 
@@ -49,7 +49,7 @@ Config/Needs/website: rmarkdown
 Config/testthat/parallel: true
 LazyData: true
 NeedsCompilation: no
-Packaged: 2025-06-02 05:07:07 UTC; py128
+Packaged: 2025-06-02 21:01:51 UTC; py128
 Author: Stephan Daus [aut, cre, cph] (ORCID:
     <https://orcid.org/0000-0003-0230-6997>),
   Julia Silge [ctb] (Author of internal scale_x_reordered),
@@ -58,4 +58,4 @@ Author: Stephan Daus [aut, cre, cph] (ORCID:
     (NIFU) [fnd],
   Kristiania University College [fnd]
 Repository: CRAN
-Date/Publication: 2025-06-02 05:40:02 UTC
+Date/Publication: 2025-06-04 12:10:06 UTC

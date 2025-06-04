@@ -1,7 +1,7 @@
-e99cae2d736ff0b290e2b5d57269336e *DESCRIPTION
+7c1f2cd1d1aa0bbbdcde26a442ad6ecb *DESCRIPTION
 36e8de1ce194edb481fc71bb92536be3 *LICENSE
 57d95b8fa603361558cfa960c6263acc *NAMESPACE
-a0c4c5cbfffd028a725a628255f6b3ae *NEWS.md
+e60f84ed3b2a69900725dad4a94fdefd *NEWS.md
 31cb9913f12d7855ff3f7b56b9b2484e *R/check_multiple_dep_and_one_indep.R
 99dcd3c0fd4e26503da24ac29ed076e5 *R/check_multiple_indep.R
 d11263f62d74df5da49214c341e2be74 *R/check_no_duplicated_label_suffix.R
@@ -18,7 +18,7 @@ e18c43317393a2dec656a4b669c682f8 *R/data.R
 229aefcf5eec6d7560f5089afc0e1ba5 *R/err_msg.R
 97b2845ed3a40aac584eeac254c2a304 *R/fig_height_h_barchart.R
 f0b2e8f692803622428c202d62181a70 *R/find_stat_test.R
-3e2c6bc4072ea58216c2e44640d745e0 *R/get_common_levels.R
+4c5d77121b466fd65fb0c038c1300318 *R/get_common_levels.R
 b66beb61bd99c11fa6719874c56d1739 *R/get_main_question.R
 59e82f80616d65df75d20b35f849ff0e *R/get_raw_labels.R
 45dbe7757b22d92ea330d7449e8b9578 *R/ggsaver.R

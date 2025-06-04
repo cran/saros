@@ -1,5 +1,9 @@
+# saros 1.5.4
+-   Fix: Corrected error introduced in 1.5.3
+
 # saros 1.5.3
 -   Fix: `makeme` now handles arguments in parent frame scopes correctly.
+-   Fix: internal function `get_common_levels` now works with no provided `col_pos`.
 
 # saros 1.5.1
 -   Feature: Added `".percentage"` as valid (sorting) column
