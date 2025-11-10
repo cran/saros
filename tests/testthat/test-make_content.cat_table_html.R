@@ -5,20 +5,59 @@ testthat::test_that("make_content.cat_table_html works", {
       dep = p_1:p_4, # indep = x2_human,
       type = "cat_table_html",
       showNA = "never",
-      add_n_to_dep_label = TRUE
+      add_n_to_dep_label = TRUE,
+      descend = FALSE
     )
-  testthat::expect_equal(as.character(result$.variable_label[[4]]), "Blue Party (N = 266)")
+  testthat::expect_equal(
+    as.character(result$.variable_label[[4]]),
+    "Blue Party (N = 266)"
+  )
+})
+
+testthat::test_that("make_content.cat_table_html sorts correctly for '.top' and '.proportion'+desc", {
+  # Shared dataset and options
+  data_in <- labelled::copy_labels_from(saros::ex_survey, saros::ex_survey)
+
+  # Case 1: sort_dep_by = .top (asc)
+  out_top <- saros::makeme(
+    data = data_in,
+    dep = b_1:b_3,
+    sort_dep_by = ".top",
+    label_separator = " - ",
+    type = "cat_table_html",
+    showNA = "never",
+    descend = FALSE
+  )
+  testthat::expect_equal(dplyr::pull(out_top, `A lot (%)`), c("8", "9", "10"))
+
+  # Case 2: sort_dep_by = .proportion with descend = TRUE
+  out_prop_desc <- saros::makeme(
+    data = data_in,
+    dep = b_1:b_3,
+    sort_dep_by = ".proportion",
+    label_separator = " - ",
+    type = "cat_table_html",
+    showNA = "never",
+    descend = TRUE
+  )
+  testthat::expect_equal(dplyr::pull(out_prop_desc, `A lot (%)`), c("10", "9", "8"))
 })
 
 testthat::test_that("make_content.cat_table_html works with NA on both dep and indep", {
   expected_df <-
-    NULL
+    data.frame()
   data.frame(
     a = factor(c("M", "F", NA), exclude = NULL),
     b = factor(c(NA, NA, "Z"), exclude = NULL)
   ) |>
     labelled::set_variable_labels(a = "Gender", b = "Generation") |>
-    saros::makeme(dep = a, indep = b, showNA = "never", type = "cat_table_html") |>
+    saros::makeme(
+      dep = a,
+      indep = b,
+      showNA = "never",
+      type = "cat_table_html",
+      descend = FALSE
+    ) |>
     testthat::expect_equal(expected = expected_df)
 })
 
@@ -26,34 +65,61 @@ testthat::test_that("make_content.cat_table_html works with NA on both dep and i
 testthat::test_that("make_content.cat_table_html works with NA on both dep and indep", {
   expected_df <-
     tibble::tibble(
-      Generation = factor(c("Z", "NA"), levels = c("Z", "NA"), exclude = NULL),
-      `F (%)` = c(NA, "50"),
-      `M (%)` = c(NA, "50"),
-      `NA (%)` = c("100", NA),
-      `Total (N)` = c(1L, 2L)
-    )
-  attr(expected_df$Generation, "label") <- "Generation"
-  data.frame(
-    a = factor(c("M", "F", NA), exclude = NULL),
-    b = factor(c(NA, NA, "Z"), exclude = NULL)
+      Generation = factor(
+        c("Z", "NA"),
+        levels = c("Z", "NA"),
+        exclude = NULL,
+        ordered = TRUE
+      ),
+      `M (%)` = c("67", "33"),
+      `F (%)` = c(NA, "33"),
+      `NA (%)` = c("33", "33"),
+      `Total (N)` = c(3L, 3L)
+    ) |>
+    labelled::set_variable_labels(Generation = "Generation")
+  test_data <-
+    data.frame(
+      a = factor(
+        c("M", "F", "M", "M", NA, NA),
+        levels = c("M", "F", NA),
+        exclude = NULL
+      ),
+      b = factor(
+        c(NA, NA, "Z", "Z", "Z", NA),
+        levels = c("Z", NA),
+        exclude = NULL,
+        ordered = TRUE
+      )
+    ) |>
+    labelled::set_variable_labels(a = "Gender", b = "Generation")
+
+  saros::makeme(
+    data = test_data,
+    dep = a,
+    indep = b,
+    showNA = "always",
+    type = "cat_table_html",
+
+    descend = FALSE
   ) |>
-    labelled::set_variable_labels(a = "Gender", b = "Generation") |>
-    saros::makeme(dep = a, indep = b, showNA = "always", type = "cat_table_html") |>
     testthat::expect_equal(expected = expected_df)
 })
 
 testthat::test_that("make_content.cat_table_html works with all missing variable labels", {
   testthat::expect_warning(
-    saros::ex_survey |>
-      dplyr::mutate(dplyr::across(a_1:a_3, ~ factor(.x, ordered = TRUE))) |>
-      saros::makeme(dep = a_1:a_3, type = "cat_table_html"),
+    testthat::expect_warning(
+      saros::ex_survey |>
+        dplyr::mutate(dplyr::across(a_1:a_3, ~ factor(.x, ordered = TRUE))) |>
+        saros::makeme(dep = a_1:a_3, type = "cat_table_html", descend = FALSE),
+      regexp = "No main question found\\."
+    ),
     regexp = "No variable labels found for "
   )
 
   out <-
     saros::ex_survey |>
     dplyr::mutate(dplyr::across(a_1:a_3, ~ factor(.x, ordered = TRUE))) |>
-    saros::makeme(dep = a_1:a_3, type = "cat_table_html") |>
+    saros::makeme(dep = a_1:a_3, type = "cat_table_html", descend = FALSE) |>
     suppressWarnings()
 
   out |>

@@ -32,7 +32,9 @@ makeme(
   label_separator = " - ",
   error_on_duplicates = TRUE,
   showNA = c("ifany", "always", "never"),
-  data_label = c("percentage_bare", "percentage", "proportion", "count"),
+  data_label = c("percentage_bare", "percentage", "proportion", "count", "mean",
+    "median"),
+  data_label_position = c("center", "bottom", "top", "above"),
   html_interactive = TRUE,
   hide_axis_text_if_single_variable = TRUE,
   hide_label_if_prop_below = 0.01,
@@ -42,8 +44,11 @@ makeme(
   data_label_decimal_symbol = ".",
   x_axis_label_width = 25,
   strip_width = 25,
-  sort_by = ".upper",
+  sort_dep_by = ".variable_position",
+  sort_indep_by = ".factor_order",
+  sort_by = NULL,
   descend = TRUE,
+  descend_indep = FALSE,
   labels_always_at_top = NULL,
   labels_always_at_bottom = NULL,
   table_wide = TRUE,
@@ -251,6 +256,13 @@ Choose whether to show NA categories in the results.}
 
 One of "proportion", "percentage", "percentage_bare", "count", "mean", or "median".}
 
+\item{data_label_position}{\emph{Data label position}
+
+\verb{scalar<character>} // \emph{default:} \code{"center"} (\code{optional})
+
+Position of data labels on bars. One of "center" (middle of bar), "bottom" (bottom but inside bar),
+"top" (top but inside bar), or "above" (above bar outside).}
+
 \item{html_interactive}{\emph{Toggle interactive plot}
 
 \verb{scalar<logical>} // \emph{default:} \code{TRUE} (\code{optional})
@@ -299,17 +311,56 @@ Decimal marker, some might prefer a comma ',' or something else entirely.}
 
 Width of the labels used for the categorical column names in x-axis texts and strip texts.}
 
-\item{sort_by}{\emph{What to sort output by}
+\item{sort_dep_by}{\emph{What to sort dependent variables by}
+
+\verb{vector<character>} // \emph{default:} \code{".variable_position"} (\code{optional})
+
+Sort dependent variables in output. When using \code{indep}-argument,
+sorting differs between ordered factors and unordered factors: Ordering
+of ordered factors is always respected in output (their levels define
+the base order). Unordered factors will be reordered by \code{sort_dep_by}.
+
+\describe{
+\item{NULL or ".variable_position"}{Sort by variable position in the supplied data frame (default).}
+\item{".variable_label"}{Sort by the variable labels.}
+\item{".variable_name"}{Sort by the variable names.}
+\item{".top"}{The proportion for the highest category available in the variable.}
+\item{".upper"}{The sum of the proportions for the categories above the middle category.}
+\item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
+\item{".mid_lower"}{The sum of the proportions for the categories including and below the middle category.}
+\item{".lower"}{The sum of the proportions for the categories below the middle category.}
+\item{".bottom"}{The proportions for the lowest category available in the variable.}
+}}
+
+\item{sort_indep_by}{\emph{What to sort independent variable categories by}
+
+\verb{vector<character>} // \emph{default:} \code{".factor_order"} (\code{optional})
+
+Sort independent variable categories in output. When \code{".factor_order"},
+preserves the original factor level order for the independent variable.
+Passing \code{NULL} is accepted and treated as \code{".factor_order"}.
+
+\describe{
+\item{NULL}{No sorting - preserves original factor level order (default).}
+\item{".top"}{The proportion for the highest category available.}
+\item{".upper"}{The sum of the proportions for the categories above the middle category.}
+\item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
+\item{".mid_lower"}{The sum of the proportions for the categories including and below the middle category.}
+\item{".lower"}{The sum of the proportions for the categories below the middle category.}
+\item{".bottom"}{The proportions for the lowest category available.}
+\item{character()}{Character vector of category labels to sum together.}
+}}
+
+\item{sort_by}{\emph{What to sort output by (legacy)}
 
 \verb{vector<character>} // \emph{default:} \code{NULL} (\code{optional})
 
-Sort output (and collapse if requested). When using \code{indep}-argument,
-sorting differs between ordered factors and unordered factors: Ordering
-of ordered factors is always respected in output. Unordered factors will be
-reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
+\strong{DEPRECATED:} Use \code{sort_dep_by} and \code{sort_indep_by} instead for clearer control.
+When specified, this parameter will be used for both dependent and independent sorting.
+If \code{NULL} (default), dependent variables will be sorted by \code{.variable_position}.
 
 \describe{
-\item{NULL}{No sorting.}
+\item{NULL}{Uses \code{.variable_position} for dependent variables, no sorting for independent.}
 \item{".top"}{The proportion for the highest category available in the variable.}
 \item{".upper"}{The sum of the proportions for the categories above the middle category.}
 \item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
@@ -327,8 +378,19 @@ reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 
 \verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
-Reverse sorting of \code{sort_by} in figures and tables. See \code{arrange_section_by}
-for sorting of report sections.}
+Reverse sorting of \code{sort_by} in figures and tables. Works with both
+ordered and unordered factors - for ordered factors, it reverses the
+display order while preserving the inherent level ordering.
+See \code{arrange_section_by} for sorting of report sections.}
+
+\item{descend_indep}{\emph{Sorting order for independent variables}
+
+\verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
+
+Reverse sorting of \code{sort_indep_by} in figures and tables. Works with both
+ordered and unordered factors - for ordered factors, it reverses the
+display order while preserving the inherent level ordering.
+See \code{arrange_section_by} for sorting of report sections.}
 
 \item{labels_always_at_top, labels_always_at_bottom}{\emph{Top/bottom variables}
 
@@ -389,7 +451,7 @@ Colour as a single string for NA values, if showNA is "ifany" or "always".}
 
 \verb{scalar<integer>} // \emph{default:} \code{6} (\code{optional})
 
-ONLY FOR DOCX-OUTPUT. Other output is adjusted using e.g. ggplot2::theme() or set with a global theme (ggplot2::theme_set()).
+ONLY FOR DOCX-OUTPUT. Other output is adjusted using e.g. ggplot2::theme() or set with a global theme (ggplot2::set_theme()).
 Font sizes for general text (6), data label text (3), strip text (6) and legend text (6).}
 
 \item{font_family}{\emph{Font family}
@@ -419,11 +481,7 @@ This function allows embedding of interactive or static plots based on various t
 \examples{
 makeme(
   data = ex_survey,
-  dep = b_1:b_3
-)
-makeme(
-  data = ex_survey,
-  dep = b_1, indep = x1_sex
+  dep = b_1:b_2
 )
 makeme(
   data = ex_survey,
@@ -432,18 +490,18 @@ makeme(
 )
 makeme(
   data = ex_survey,
-  dep = b_1, indep = x1_sex,
-  type = "cat_prop_plot_docx"
-)
-makeme(
-  data = ex_survey,
   dep = p_1:p_4, indep = x2_human,
   type = "cat_table_html"
 )
 makeme(
   data = ex_survey,
-  dep = b_1:b_3,
-  crowd = c("target", "others", "all"),
+  dep = c_1:c_2, indep = x1_sex,
+  type = "int_table_html"
+)
+makeme(
+  data = ex_survey,
+  dep = b_1:b_2,
+  crowd = c("target", "others"),
   mesos_var = "f_uni",
   mesos_group = "Uni of A"
 )

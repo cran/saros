@@ -1,5 +1,4 @@
-check_sort_by <- function(x, sort_by = NULL,
-                          call = rlang::caller_env()) {
+check_sort_by <- function(x, sort_by = NULL, call = rlang::caller_env()) {
   set_options <- c(
     .saros.env$summary_data_sort1,
     .saros.env$summary_data_sort2
@@ -12,12 +11,25 @@ check_sort_by <- function(x, sort_by = NULL,
   if (
     is.character(sort_by) &&
       length(sort_by) == 1 &&
-      sort_by %in% set_options) {
+      sort_by %in% set_options
+  ) {
     return()
+  }
+  # Error on empty character vector first
+  if (is.character(sort_by) && length(sort_by) == 0) {
+    cli::cli_abort(
+      c(
+        x = "Invalid {.arg sort_by}: empty character vector",
+        i = "{.arg sort_by} cannot be an empty character vector."
+      ),
+      call = call
+    )
   }
   if (
     is.character(sort_by) &&
-      all(sort_by %in% categories_in_data)) {
+      length(sort_by) > 0 &&
+      all(sort_by %in% categories_in_data)
+  ) {
     return()
   }
   cli::cli_abort(

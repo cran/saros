@@ -12,7 +12,10 @@ summarize_cat_cat_data(
   showNA = c("ifany", "always", "never"),
   totals = FALSE,
   sort_by = ".upper",
-  data_label = c("percentage_bare", "percentage", "proportion", "count"),
+  sort_dep_by = NULL,
+  sort_indep_by = ".factor_order",
+  data_label = c("percentage_bare", "percentage", "proportion", "count", "mean",
+    "median"),
   digits = 0,
   add_n_to_dep_label = FALSE,
   add_n_to_indep_label = FALSE,
@@ -23,6 +26,7 @@ summarize_cat_cat_data(
   categories_treated_as_na = NULL,
   label_separator = NULL,
   descend = FALSE,
+  descend_indep = FALSE,
   labels_always_at_bottom = NULL,
   labels_always_at_top = NULL,
   translations = list(),
@@ -60,17 +64,16 @@ Choose whether to show NA categories in the results.}
 
 Whether to include totals in the output.}
 
-\item{sort_by}{\emph{What to sort output by}
+\item{sort_by}{\emph{What to sort output by (legacy)}
 
 \verb{vector<character>} // \emph{default:} \code{NULL} (\code{optional})
 
-Sort output (and collapse if requested). When using \code{indep}-argument,
-sorting differs between ordered factors and unordered factors: Ordering
-of ordered factors is always respected in output. Unordered factors will be
-reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
+\strong{DEPRECATED:} Use \code{sort_dep_by} and \code{sort_indep_by} instead for clearer control.
+When specified, this parameter will be used for both dependent and independent sorting.
+If \code{NULL} (default), dependent variables will be sorted by \code{.variable_position}.
 
 \describe{
-\item{NULL}{No sorting.}
+\item{NULL}{Uses \code{.variable_position} for dependent variables, no sorting for independent.}
 \item{".top"}{The proportion for the highest category available in the variable.}
 \item{".upper"}{The sum of the proportions for the categories above the middle category.}
 \item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
@@ -81,6 +84,46 @@ reordered by \code{sort_by}. Currently, this works best for a single \code{dep}.
 \item{".variable_name"}{Sort by the variable names.}
 \item{".variable_position"}{Sort by the variable position in the supplied data frame.}
 \item{".by_group"}{The groups of the by argument.}
+\item{character()}{Character vector of category labels to sum together.}
+}}
+
+\item{sort_dep_by}{\emph{What to sort dependent variables by}
+
+\verb{vector<character>} // \emph{default:} \code{".variable_position"} (\code{optional})
+
+Sort dependent variables in output. When using \code{indep}-argument,
+sorting differs between ordered factors and unordered factors: Ordering
+of ordered factors is always respected in output (their levels define
+the base order). Unordered factors will be reordered by \code{sort_dep_by}.
+
+\describe{
+\item{NULL or ".variable_position"}{Sort by variable position in the supplied data frame (default).}
+\item{".variable_label"}{Sort by the variable labels.}
+\item{".variable_name"}{Sort by the variable names.}
+\item{".top"}{The proportion for the highest category available in the variable.}
+\item{".upper"}{The sum of the proportions for the categories above the middle category.}
+\item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
+\item{".mid_lower"}{The sum of the proportions for the categories including and below the middle category.}
+\item{".lower"}{The sum of the proportions for the categories below the middle category.}
+\item{".bottom"}{The proportions for the lowest category available in the variable.}
+}}
+
+\item{sort_indep_by}{\emph{What to sort independent variable categories by}
+
+\verb{vector<character>} // \emph{default:} \code{".factor_order"} (\code{optional})
+
+Sort independent variable categories in output. When \code{".factor_order"},
+preserves the original factor level order for the independent variable.
+Passing \code{NULL} is accepted and treated as \code{".factor_order"}.
+
+\describe{
+\item{NULL}{No sorting - preserves original factor level order (default).}
+\item{".top"}{The proportion for the highest category available.}
+\item{".upper"}{The sum of the proportions for the categories above the middle category.}
+\item{".mid_upper"}{The sum of the proportions for the categories including and above the middle category.}
+\item{".mid_lower"}{The sum of the proportions for the categories including and below the middle category.}
+\item{".lower"}{The sum of the proportions for the categories below the middle category.}
+\item{".bottom"}{The proportions for the lowest category available.}
 \item{character()}{Character vector of category labels to sum together.}
 }}
 
@@ -157,8 +200,19 @@ Separator for main question from sub-question.}
 
 \verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
 
-Reverse sorting of \code{sort_by} in figures and tables. See \code{arrange_section_by}
-for sorting of report sections.}
+Reverse sorting of \code{sort_by} in figures and tables. Works with both
+ordered and unordered factors - for ordered factors, it reverses the
+display order while preserving the inherent level ordering.
+See \code{arrange_section_by} for sorting of report sections.}
+
+\item{descend_indep}{\emph{Sorting order for independent variables}
+
+\verb{scalar<logical>} // \emph{default:} \code{FALSE} (\code{optional})
+
+Reverse sorting of \code{sort_indep_by} in figures and tables. Works with both
+ordered and unordered factors - for ordered factors, it reverses the
+display order while preserving the inherent level ordering.
+See \code{arrange_section_by} for sorting of report sections.}
 
 \item{labels_always_at_top, labels_always_at_bottom}{\emph{Top/bottom variables}
 
@@ -181,7 +235,7 @@ Both the absolute and relative folderpaths are required, as strings.}
 \value{
 Dataset with the columns: \code{.variable_name}, \code{.variable_label}, \code{.category},
 \code{.count}, \code{.count_se}, \code{.count_per_dep}, \code{.count_per_indep_group}, \code{.proportion}, \code{.proportion_se},
-\code{.mean}, \code{.mean_se}, indep-variable(s), \code{.data_label}, \code{.comb_categories}, \code{.sum_value},
+\code{.mean}, \code{.mean_se}, \code{.median}, indep-variable(s), \code{.data_label}, \code{.comb_categories}, \code{.sum_value},
 \code{.variable_label_prefix}
 }
 \description{

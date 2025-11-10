@@ -1,7 +1,7 @@
 Type: Package
 Package: saros
 Title: Semi-Automatic Reporting of Ordinary Surveys
-Version: 1.5.4
+Version: 1.6.0
 Authors@R: c(
     person(given = "Stephan", 
            family = "Daus", 
@@ -35,21 +35,21 @@ URL: https://nifu-no.github.io/saros/, https://github.com/NIFU-NO/saros
 BugReports: https://github.com/NIFU-NO/saros/issues
 Depends: R (>= 4.2.0)
 Imports: cli, dplyr, forcats, fs, ggiraph, ggplot2, glue, grDevices,
-        lifecycle, mschart, officer, rlang, stringi, tidyr, tidyselect,
-        utils, vctrs
+        lifecycle, mschart, officer, rlang, stringi, stats, tidyr,
+        tidyselect, utils, vctrs
 Suggests: covr, haven, labelled, quarto, knitr, readr, scales,
-        spelling, srvyr, testthat (>= 3.0.0), tibble, vdiffr, withr,
-        writexl
+        spelling, srvyr, survey, testthat (>= 3.0.0), tibble, vdiffr,
+        withr, writexl, readxl
 Config/testthat/edition: 3
 Encoding: UTF-8
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Language: en-US
 VignetteBuilder: quarto
 Config/Needs/website: rmarkdown
 Config/testthat/parallel: true
 LazyData: true
 NeedsCompilation: no
-Packaged: 2025-06-02 21:01:51 UTC; py128
+Packaged: 2025-11-10 11:32:55 UTC; py128
 Author: Stephan Daus [aut, cre, cph] (ORCID:
     <https://orcid.org/0000-0003-0230-6997>),
   Julia Silge [ctb] (Author of internal scale_x_reordered),
@@ -58,4 +58,4 @@ Author: Stephan Daus [aut, cre, cph] (ORCID:
     (NIFU) [fnd],
   Kristiania University College [fnd]
 Repository: CRAN
-Date/Publication: 2025-06-04 12:10:06 UTC
+Date/Publication: 2025-11-10 12:00:02 UTC
