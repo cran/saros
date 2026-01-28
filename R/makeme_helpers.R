@@ -60,25 +60,135 @@ resolve_variable_overlaps <- function(dep, indep) {
   dep
 }
 
+#' Auto-Detect Appropriate Output Type Based on Variable Types
+#'
+#' Internal helper function that determines the most appropriate output type
+#' based on the classes of dependent and independent variables.
+#'
+#' @param data Data frame to analyze
+#' @param dep Character vector of dependent variable names
+#' @param indep Character vector of independent variable names (can be NULL/empty)
+#'
+#' @return Character string with the detected type:
+#'   - `"int_plot_html"` for numeric/integer dependent variables
+#'   - `"chr_table_html"` for single character dependent variable
+#'   - `"cat_plot_html"` for factor/ordered dependent variables or multiple character variables
+#'
+#' @keywords internal
+auto_detect_makeme_type <- function(data, dep, indep = NULL) {
+  # Detect types of dependent variables
+  dep_types <- vapply(
+    dep,
+    function(v) class(data[[v]])[1],
+    character(1),
+    USE.NAMES = FALSE
+  )
+
+  integerish_types <- c("integer", "numeric", "double")
+  categorical_types <- c("factor", "ordered", "logical", "character")
+  unsupported_types <- c(
+    "Date",
+    "POSIXct",
+    "POSIXt",
+    "list",
+    "complex"
+  )
+
+  # Check if all deps are numeric/integer
+  if (all(dep_types %in% integerish_types)) {
+    return("int_plot_html")
+  }
+
+  # Check for single character variable - use chr_table_html
+  if (length(dep) == 1 && dep_types[1] == "character") {
+    return("chr_table_html")
+  }
+
+  # Check if all deps are categorical (factor/ordered/character)
+  if (all(dep_types %in% categorical_types)) {
+    return("cat_plot_html")
+  }
+
+  # Mixed types - provide informative error
+  numeric_vars <- dep[dep_types %in% integerish_types]
+  categorical_vars <- dep[dep_types %in% categorical_types]
+  unsupported_vars <- dep[dep_types %in% unsupported_types]
+
+  has_numeric <- length(numeric_vars) > 0
+  has_categorical <- length(categorical_vars) > 0
+  has_unsupported <- length(unsupported_vars) > 0
+
+  cli::cli_abort(c(
+    "x" = "Cannot auto-detect type: dependent variables have mixed types.",
+    if (has_numeric) {
+      c("i" = "Numeric variables: {.val {numeric_vars}}")
+    } else {
+      NULL
+    },
+    if (has_categorical) {
+      c("i" = "Categorical variables: {.val {categorical_vars}}")
+    } else {
+      NULL
+    },
+    if (has_unsupported) {
+      c("i" = "Unsupported variables: {.val {unsupported_vars}}")
+    } else {
+      NULL
+    },
+    if (has_numeric || has_categorical) {
+      c(
+        "!" = "Please specify {.arg type} explicitly:",
+        if (has_numeric) {
+          c(" " = "- Use {.code type = 'int_plot_html'} for numeric variables")
+        } else {
+          NULL
+        },
+        if (has_categorical) {
+          c(" " = "- Use {.code type = 'cat_plot_html'} for categorical variables")
+        } else {
+          NULL
+        }
+      )
+    } else {
+      NULL
+    }
+  ))
+}
+
 #' Normalize Multi-Choice Arguments to Single Values
 #'
 #' Internal helper function that ensures makeme arguments that might be vectors
 #' are normalized to single values by taking the first element.
 #'
 #' @param args List of makeme function arguments
+#' @param data Data frame being analyzed (needed for auto type detection)
 #'
 #' @return Modified args list with normalized single-value arguments:
 #'   - `showNA`: First element of showNA vector
 #'   - `data_label`: First element of data_label vector
 #'   - `data_label_position`: First element of data_label_position vector
-#'   - `type`: First element of evaluated type expression
+#'   - `type`: Auto-detected type if "auto", otherwise first element of evaluated type expression
 #'
 #' @keywords internal
-normalize_makeme_arguments <- function(args) {
+normalize_makeme_arguments <- function(args, data = NULL) {
   args$showNA <- args$showNA[1]
   args$data_label <- args$data_label[1]
   args$data_label_position <- args$data_label_position[1]
-  args$type <- eval(args$type)[1]
+
+  # Handle type - auto-detect if "auto"
+  type_value <- eval(args$type)[1]
+  if (identical(type_value, "auto")) {
+    if (is.null(data)) {
+      cli::cli_abort(c(
+        "x" = "Cannot auto-detect type without data.",
+        "i" = "This is an internal error - please report it."
+      ))
+    }
+    args$type <- auto_detect_makeme_type(data, args$dep, args$indep)
+  } else {
+    args$type <- type_value
+  }
+
   args
 }
 
@@ -132,10 +242,19 @@ validate_type_specific_constraints <- function(args, data, indep, dep_pos) {
 #'
 #' @keywords internal
 detect_variable_types <- function(subset_data, dep_crwd, indep_crwd) {
-  variable_type_dep <- lapply(dep_crwd, function(v) class(subset_data[[v]])) |>
-    unlist()
+  variable_type_dep <- vapply(
+    dep_crwd,
+    function(v) class(subset_data[[v]])[1],
+    character(1),
+    USE.NAMES = FALSE
+  )
   variable_type_indep <- if (length(indep_crwd) > 0) {
-    lapply(indep_crwd, function(v) class(subset_data[[v]])) |> unlist()
+    vapply(
+      indep_crwd,
+      function(v) class(subset_data[[v]])[1],
+      character(1),
+      USE.NAMES = FALSE
+    )
   } else {
     character(0)
   }
@@ -485,8 +604,11 @@ summarize_data_by_type <- function(
   indep_crwd,
   ...
 ) {
-  variable_type_dep <- lapply(args$dep, function(v) class(subset_data[[v]])) |>
-    unlist()
+  variable_type_dep <- vapply(
+    args$dep,
+    function(v) class(subset_data[[v]])[1],
+    character(1)
+  )
   if (all(variable_type_dep %in% c("integer", "numeric"))) {
     args$data_summary <- rlang::exec(summarize_int_cat_data, !!!args)
   } else if (all(variable_type_dep %in% c("factor", "ordered"))) {
@@ -779,6 +901,7 @@ process_crowd_data <- function(
 
   # Prepare arguments for this crowd
   args_crwd <- args
+  args_crwd$data <- subset_data # Use filtered data for this crowd
   args_crwd$dep <- dep_crwd
   args_crwd$indep <- indep_crwd
 
@@ -827,7 +950,7 @@ setup_and_validate_makeme_args <- function(
   args$dep <- resolve_variable_overlaps(args$dep, args$indep)
 
   # Normalize multi-choice arguments to single values
-  args <- normalize_makeme_arguments(args)
+  args <- normalize_makeme_arguments(args, data)
 
   validate_makeme_options(params = args)
 
@@ -921,7 +1044,7 @@ process_output_results <- function(out, args) {
   }
 
   # Remove NULL results
-  out <- out[!sapply(out, is.null)]
+  out <- out[!vapply(out, is.null, logical(1))]
 
   # Simplify output if requested
   if (isTRUE(args$simplify_output) && length(out) == 1) {

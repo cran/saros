@@ -48,7 +48,11 @@ apply_label_wrapping <- function(
   strip_width,
   x_axis_label_width
 ) {
-  if (indep_length == 1 && isFALSE(inverse)) {
+  if (indep_length == 0) {
+    # When no independent variable, variable labels are on x-axis
+    data[[".variable_label"]] <-
+      strip_wrap_var(data[[".variable_label"]], width = x_axis_label_width)
+  } else if (indep_length == 1 && isFALSE(inverse)) {
     # When faceting by variable labels, apply strip_width wrapping
     data[[".variable_label"]] <-
       strip_wrap_var(data[[".variable_label"]], width = strip_width)
@@ -126,7 +130,13 @@ make_content.int_plot_html <-
         names_to = ".variable_name",
         values_to = ".value"
       ) |>
-      dplyr::left_join(y = dep_labels, by = ".variable_name")
+      dplyr::left_join(y = dep_labels, by = ".variable_name") |>
+      dplyr::select(tidyselect::all_of(c(
+        ".variable_name",
+        ".variable_label",
+        ".value",
+        dots$indep # Include indep variable(s) if present
+      )))
 
     out <-
       p_data |>

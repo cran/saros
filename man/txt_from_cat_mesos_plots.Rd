@@ -12,6 +12,7 @@ txt_from_cat_mesos_plots(
   digits = 2,
   selected_categories_last_split = " or ",
   fallback_string = character(),
+  reverse = FALSE,
   glue_str_pos =
     c(paste0("For {var}, the target group has a higher proportion of respondents ",
     "({group_1}) than all others ({group_2}) who answered {selected_categories}."),
@@ -36,7 +37,8 @@ Each must contain columns: \code{.variable_label}, \code{.category}, \code{.cate
 between groups to generate text. Differences below this threshold are ignored.}
 
 \item{n_highest_categories}{Integer. Number of top categories to include in the
-comparison (default 1). Categories are selected based on \code{.category_order}.}
+comparison (default 1). Categories are selected based on \code{.category_order}.
+Only applied if the variable has more categories than this value.}
 
 \item{flip_to_lowest_categories}{Logical. If TRUE, compare lowest categories instead
 of highest (default FALSE).}
@@ -47,6 +49,8 @@ of highest (default FALSE).}
 listing multiple categories (default " or ").}
 
 \item{fallback_string}{Character. String to return when validation fails (default \code{character()}).}
+
+\item{reverse}{Logical. If TRUE, reverses the order of the output text summaries (default FALSE).}
 
 \item{glue_str_pos}{Character vector. Templates for positive differences (group_1 > group_2).
 Available placeholders: \code{{var}}, \code{{group_1}}, \code{{group_2}}, \code{{selected_categories}}.}

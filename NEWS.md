@@ -1,3 +1,23 @@
+# saros 1.6.1
+
+## New Features
+-   Added `quiet` parameter to `global_settings_reset()` to optionally suppress informational messages when resetting global settings to package defaults
+-   **Addressed issue #510**: `makeme()` now defaults to `type = "auto"` which intelligently detects the appropriate output type based on dependent variable classes:
+    -   Numeric variables -> `int_plot_html`
+    -   Single character variable -> `chr_table_html`
+    -   Factor/ordered or multiple character variables -> `cat_plot_html`
+    -   Unsupported types (Date, POSIXct, POSIXt, list, complex) produce clear error messages identifying the problematic variables
+    -   This eliminates the uninformative "arguments must have same length" error when accidentally providing numeric variables without specifying type. Mixed variable types produce a clear error message suggesting the correct type to use
+
+## Bug Fixes
+-   Fixed issue #518 where `crowd_plots_as_tabset()` with `save = NULL` produced cryptic "object 'caption' not found" error. Added proper validation to ensure `save` parameter is a single logical value (TRUE or FALSE)
+-   Fixed `txt_from_cat_mesos_plots()` where second group (others) proportions incorrectly became zero. Refactored to process each variable separately, ensuring both groups' proportions are correctly calculated per variable
+-   Fixed `txt_from_cat_mesos_plots()` where `n_highest_categories=2` with binary (2-category) variables summed all categories to 1.0, producing uninformative results. Now only applies `n_highest_categories` when the variable has more categories than the threshold, otherwise uses only the single highest/lowest category
+-   Fixed issue #511 where `x_axis_label_width` parameter had no effect in `int_plot_html` when no independent variable was present. The `apply_label_wrapping()` function now correctly wraps `.variable_label` when `indep_length == 0`
+-   Fixed issue #512 where `makeme()` with multiple crowds produced identical plots instead of crowd-specific filtered data. The `process_crowd_data()` function now correctly passes filtered `subset_data` to `make_content()` for each crowd, ensuring each plot displays statistics computed from only that crowd's data subset
+-   Fixed `txt_from_cat_mesos_plots()` to handle cases where `.category_order` contains NA values by using `na.rm = TRUE` when calculating max values, preventing "NA/NaN argument" errors
+-   Fixed `n_rng2()` to correctly calculate sample sizes for `int_plot_html` plots by only checking complete cases on relevant variables (`.value` and independent variables) instead of all columns in the dataset. Also modified `make_content.int_plot_html()` to only include necessary columns in the plot object, reducing memory footprint
+
 # saros 1.6.0
 
 ## Breaking Changes
