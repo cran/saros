@@ -1,3 +1,65 @@
+# ---- Helpers for extracting ggplot theme information ----
+
+#' Extract plotting dimensions from ggplot theme
+#'
+#' Extracts the base font size and legend position from a ggplot2 object's
+#' complete theme (global theme + plot-level overrides) to improve automatic
+#' height estimation.
+#'
+#' @param plot_obj A ggplot2 object
+#' @return A list with components:
+#'   \describe{
+#'     \item{base_size}{Numeric. The base text size in points from the theme.}
+#'     \item{legend_adds_height}{Logical. TRUE when the legend is positioned at
+#'       the bottom or top (adding vertical space), FALSE when at the sides,
+#'       inside the panel, or hidden.}
+#'   }
+#' @keywords internal
+extract_ggplot_theme_info <- function(plot_obj) {
+  complete_theme <- ggplot2::theme_get() + plot_obj$theme
+
+  # Base text size (default 11pt in ggplot2). Use calc_element() to resolve
+  # any relative sizes (e.g., element_text(size = rel(...))) to a numeric value.
+  base_size <- tryCatch(
+    ggplot2::calc_element("text", complete_theme)$size,
+    error = function(e) complete_theme$text$size
+  )
+  if (is.null(base_size) || length(base_size) == 0) base_size <- 11
+  base_size <- as.numeric(base_size)
+
+  # Legend position — determines whether the legend occupies vertical space.
+  # ggplot2 >= 3.5.0 stores legend.position as a character string or numeric
+  # vector (for "inside" placement). Older versions use character only.
+  legend_position <- complete_theme$legend.position %||% "bottom"
+  if (is.numeric(legend_position)) legend_position <- "inside"
+  if (is.character(legend_position) && length(legend_position) > 1) {
+    legend_position <- legend_position[1]
+  }
+  # Legend adds height only at top or bottom
+  legend_adds_height <- legend_position %in% c("bottom", "top")
+
+  list(
+    base_size = base_size,
+    legend_adds_height = legend_adds_height
+  )
+}
+
+#' Count maximum wrapped lines for a character vector
+#'
+#' Simulates text wrapping and counts the maximum number of lines
+#' any label wraps to, giving exact line counts instead of estimates.
+#'
+#' @param labels Character vector of labels
+#' @param width Maximum width for wrapping
+#' @return Integer, maximum number of wrapped lines
+#' @keywords internal
+count_max_wrapped_lines <- function(labels, width) {
+  if (length(labels) == 0 || all(is.na(labels))) return(1L)
+  labels <- unique(as.character(labels))
+  wrapped <- string_wrap(labels, width = width)
+  max(stringi::stri_count_fixed(wrapped, "\n") + 1L, na.rm = TRUE)
+}
+
 estimate_categories_per_line <- function(
   figure_width_cm = 12,
   max_chars_cats = 20, # Maximum characters across the categories
@@ -99,7 +161,7 @@ combine_figure_heights <- function(
 #' @param max_chars_cats_x Integer or NULL. Maximum number of characters across the independent variables' response categories (levels).
 #' @param freq Logical. If TRUE, frequency plot with categories next to each other. If FALSE (default), proportion plot with stacked categories.
 #' @param x_axis_label_width,strip_width Numeric. Width allocated for x-axis labels and strip labels respectively.
-#' @param strip_angle Integer. Angle of the strip text.
+#' @param strip_angle Numeric. Angle of the strip text.
 #' @param main_font_size Numeric. Font size for the main text.
 #' @param legend_location Character. Location of the legend. "plot" (default) or "panel".
 #' @param n_legend_lines Integer. Number of lines in the legend.
@@ -117,6 +179,7 @@ combine_figure_heights <- function(
 #' @param min Numeric. Minimum height.
 #' @param showNA String, one of "ifany", "always" or "never". Not yet in use.
 #' @param hide_axis_text_if_single_variable Boolean. Whether the label is hidden for single dependent variable plots.
+#' @param multiplier_hide_axis_single_var Numeric. Multiplier to reduce panel height when hiding axis text for single variable (default 0.6).
 #' @param add_n_to_dep_label,add_n_to_indep_label Boolean. If TRUE, will add 10 characters to the max label lengths. This is
 #'      primarily useful when obtaining these settings from the global environment,
 #'      avoiding the need to compute this for each figure chunk.
@@ -176,6 +239,7 @@ fig_height_h_barchart <- # Returns a numeric value
     max = 12,
     min = 2,
     hide_axis_text_if_single_variable = FALSE,
+    multiplier_hide_axis_single_var = 0.6,
     add_n_to_dep_label = FALSE,
     add_n_to_indep_label = FALSE,
     showNA = c("ifany", "never", "always")
@@ -213,38 +277,74 @@ fig_height_h_barchart <- # Returns a numeric value
     max <- args$max
     min <- args$min
     hide_axis_text_if_single_variable <- args$hide_axis_text_if_single_variable
+    multiplier_hide_axis_single_var <- args$multiplier_hide_axis_single_var
     showNA <- args$showNA[[1]]
 
-    check_integerish(n_y)
-    check_integerish(n_cats_y)
-    check_integerish(max_chars_labels_y)
-    check_integerish(max_chars_cats_y)
-    check_integerish(n_x, null_allowed = TRUE)
-    check_integerish(n_cats_x, null_allowed = TRUE)
-    check_integerish(max_chars_labels_x, null_allowed = TRUE)
-    check_integerish(max_chars_cats_x, null_allowed = TRUE)
-    check_bool(freq)
-    check_double(strip_angle)
-    check_double(main_font_size)
-    check_double(multiplier_per_horizontal_line)
-    check_double(multiplier_per_vertical_letter)
-    check_double(multiplier_per_facet)
-    check_double(multiplier_per_legend_line)
-    check_double(multiplier_per_bar)
-    check_double(multiplier_per_plot)
-    check_double(fixed_constant)
-    check_integerish(legend_key_chars_equivalence)
+    # Validate all parameters at once
+    validate_params(
+      params = list(
+        n_y = n_y,
+        n_cats_y = n_cats_y,
+        max_chars_labels_y = max_chars_labels_y,
+        max_chars_cats_y = max_chars_cats_y,
+        n_x = n_x,
+        n_cats_x = n_cats_x,
+        max_chars_labels_x = max_chars_labels_x,
+        max_chars_cats_x = max_chars_cats_x,
+        strip_angle = strip_angle,
+        main_font_size = main_font_size,
+        multiplier_per_horizontal_line = multiplier_per_horizontal_line,
+        multiplier_per_vertical_letter = multiplier_per_vertical_letter,
+        multiplier_per_facet = multiplier_per_facet,
+        multiplier_per_legend_line = multiplier_per_legend_line,
+        multiplier_per_bar = multiplier_per_bar,
+        multiplier_per_plot = multiplier_per_plot,
+        fixed_constant = fixed_constant,
+        legend_key_chars_equivalence = legend_key_chars_equivalence,
+        n_legend_lines = n_legend_lines,
+        margin_in_cm = margin_in_cm,
+        figure_width_in_cm = figure_width_in_cm,
+        max = max,
+        min = min,
+        freq = freq,
+        hide_axis_text_if_single_variable = hide_axis_text_if_single_variable,
+        multiplier_hide_axis_single_var = multiplier_hide_axis_single_var,
+        add_n_to_dep_label = add_n_to_dep_label,
+        add_n_to_indep_label = add_n_to_indep_label
+      ),
+      spec = list(
+        n_y = list(type = "integerish"),
+        n_cats_y = list(type = "integerish"),
+        max_chars_labels_y = list(type = "integerish"),
+        max_chars_cats_y = list(type = "integerish"),
+        n_x = list(type = "integerish", null_allowed = TRUE),
+        n_cats_x = list(type = "integerish", null_allowed = TRUE),
+        max_chars_labels_x = list(type = "integerish", null_allowed = TRUE),
+        max_chars_cats_x = list(type = "integerish", null_allowed = TRUE),
+        strip_angle = list(type = "double"),
+        main_font_size = list(type = "double"),
+        multiplier_per_horizontal_line = list(type = "double"),
+        multiplier_per_vertical_letter = list(type = "double"),
+        multiplier_per_facet = list(type = "double"),
+        multiplier_per_legend_line = list(type = "double"),
+        multiplier_per_bar = list(type = "double"),
+        multiplier_per_plot = list(type = "double"),
+        fixed_constant = list(type = "double"),
+        legend_key_chars_equivalence = list(type = "integerish"),
+        n_legend_lines = list(type = "integerish", null_allowed = TRUE),
+        margin_in_cm = list(type = "integerish"),
+        figure_width_in_cm = list(type = "integerish"),
+        max = list(type = "integerish"),
+        min = list(type = "integerish"),
+        freq = list(type = "bool"),
+        hide_axis_text_if_single_variable = list(type = "bool"),
+        multiplier_hide_axis_single_var = list(type = "double"),
+        add_n_to_dep_label = list(type = "bool"),
+        add_n_to_indep_label = list(type = "bool")
+      )
+    )
 
-    check_integerish(n_legend_lines, null_allowed = TRUE)
-    check_integerish(margin_in_cm)
-    check_integerish(figure_width_in_cm)
-    check_integerish(strip_angle)
-    check_integerish(max)
-    check_integerish(min)
     legend_location <- legend_location[1]
-    check_bool(hide_axis_text_if_single_variable)
-    check_bool(add_n_to_dep_label)
-    check_bool(add_n_to_indep_label)
 
     multiplier_per_horizontal_line <-
       multiplier_per_horizontal_line * main_font_size / 72.27 * 2.54
@@ -324,12 +424,13 @@ fig_height_h_barchart <- # Returns a numeric value
 
       n_facets <- n_y
 
-      if (strip_angle >= 45 && strip_angle <= 135) {
+      abs_strip_angle <- abs(strip_angle)
+      if (abs_strip_angle >= 45 && abs_strip_angle <= 135) {
         # vertical strip height (one strip)
         height_per_strip <-
           max_chars_labels_y * # Incorrect, should really be the longest line in the split variable labels
           multiplier_per_vertical_letter
-      } else if (strip_angle < 45 || strip_angle > 135) {
+      } else {
         # horizontal strip height (one strip)
         height_per_strip <-
           max_lines_y *
@@ -355,6 +456,11 @@ fig_height_h_barchart <- # Returns a numeric value
       n_facets *
       multiplier_per_facet
 
+    # Reduce panel height when axis text is hidden for single variable
+    if (isTRUE(hide_axis_text_if_single_variable) && n_y == 1) {
+      panel_height <- panel_height * multiplier_hide_axis_single_var
+    }
+
     ### Put it all together
     plot_height <-
       combine_figure_heights(
@@ -374,19 +480,46 @@ fig_height_h_barchart <- # Returns a numeric value
 #' Estimate figure height for a horizontal bar chart
 #'
 #' Taking an object from `makeme()`, this function estimates the height of a
-#' figure for a horizontal bar chart.
+#' figure for a horizontal bar chart. Works with both ggplot2 and mschart objects.
 #'
-#' @param ggobj `ggplot2`-object
+#' @param plot_obj A plot object from `makeme()` - either a `ggplot2` object or an `ms_chart` object
+#' @param ... Additional parameters passed to the specific method (`fig_height_h_barchart2.ggplot` or `fig_height_h_barchart2.ms_chart`)
 #' @inheritParams fig_height_h_barchart
 #'
 #' @inherit fig_height_h_barchart return
 #' @export
 #'
 #' @examples
+#' # With ggplot2 (cat_plot_html)
 #' fig_height_h_barchart2(makeme(data = ex_survey, dep = b_1:b_2, indep = x1_sex))
+#'
+#' # With mschart (cat_plot_docx)
+#' \dontrun{
+#' fig_height_h_barchart2(
+#'   makeme(data = ex_survey, dep = b_1:b_2,
+#'          type = "cat_plot_docx", docx_return_object = TRUE)
+#' )
+#' }
 fig_height_h_barchart2 <- # Returns a numeric value
   function(
-    ggobj,
+    plot_obj,
+    ...
+  ) {
+    # Manual dispatch to handle namespaced ggplot2 classes
+    if (inherits(plot_obj, "gg") || inherits(plot_obj, "ggplot")) {
+      return(fig_height_h_barchart2.ggplot(plot_obj, ...))
+    } else if (inherits(plot_obj, "ms_chart")) {
+      return(fig_height_h_barchart2.ms_chart(plot_obj, ...))
+    } else {
+      return(fig_height_h_barchart2.default(plot_obj, ...))
+    }
+  }
+
+#' @export
+#' @rdname fig_height_h_barchart2
+fig_height_h_barchart2.ggplot <- # ggplot2 method
+  function(
+    plot_obj,
     main_font_size = 7,
     strip_angle = 0,
     freq = FALSE,
@@ -403,18 +536,269 @@ fig_height_h_barchart2 <- # Returns a numeric value
     fixed_constant = 0,
     figure_width_in_cm = 14,
     margin_in_cm = 0,
-    max = 8,
-    min = 1
+    max = 12,
+    min = 1,
+    multiplier_hide_axis_single_var = 0.6
   ) {
-    data <- ggobj$data
-    # gg <- ggobj
+    data <- plot_obj$data
 
     if (!(inherits(data, "data.frame") && nrow(data) > 0)) {
       cli::cli_warn(
-        "{.arg ggobj} must be a ggplot2-object with a nrow>0 data in it. Returning {.arg min}: {.val {min}}."
+        "{.arg plot_obj} must be a ggplot2-object with a nrow>0 data in it. Returning {.arg min}: {.val {min}}."
       )
       return(min)
     }
+
+    call <- match.call()
+
+    args <- check_options(
+      call = call,
+      ignore_args = .saros.env$ignore_args,
+      defaults_env = global_settings_get(fn_name = "fig_height_h_barchart"),
+      default_values = formals(fig_height_h_barchart)
+    )
+
+    freq <- args$freq
+    x_axis_label_width <- args$x_axis_label_width
+    strip_width <- args$strip_width
+    strip_angle <- args$strip_angle
+    main_font_size <- args$main_font_size
+    legend_location <- args$legend_location
+    n_legend_lines <- args$n_legend_lines
+    legend_key_chars_equivalence <- args$legend_key_chars_equivalence
+    multiplier_per_horizontal_line <- args$multiplier_per_horizontal_line
+    multiplier_per_vertical_letter <- args$multiplier_per_vertical_letter
+    multiplier_per_facet <- args$multiplier_per_facet
+    multiplier_per_legend_line <- args$multiplier_per_legend_line
+    multiplier_per_bar <- args$multiplier_per_bar
+    fixed_constant <- args$fixed_constant
+    figure_width_in_cm <- args$figure_width_in_cm
+    margin_in_cm <- args$margin_in_cm
+    max_value <- args$max
+    min_value <- args$min
+    hide_axis_text_if_single_variable <- args$hide_axis_text_if_single_variable
+    multiplier_hide_axis_single_var <- args$multiplier_hide_axis_single_var
+    showNA <- args$showNA[[1]]
+
+    # ---- Extract ggplot theme information for accurate estimation ----
+    theme_info <- extract_ggplot_theme_info(plot_obj)
+
+    # Only override main_font_size with the theme-derived base size when the
+    # caller did not explicitly supply a value.
+    mc <- match.call()
+    main_font_size_missing <- is.null(mc[["main_font_size"]])
+    if (main_font_size_missing || is.null(main_font_size)) {
+      # Use theme-detected font size (the actual rendering font size)
+      main_font_size <- theme_info$base_size
+    }
+
+    # If legend doesn't add vertical height (positioned at sides or hidden),
+    # set legend lines to 0 to avoid wasting space
+    if (!theme_info$legend_adds_height) {
+      n_legend_lines <- 0L
+    }
+
+    # Detect if axis text was actually hidden by makeme()
+    # If .variable_label_original exists, the labels were hidden
+    if (".variable_label_original" %in% colnames(data)) {
+      hide_axis_text_if_single_variable <- TRUE
+    }
+
+    n_y <- dplyr::n_distinct(data$.variable_name)
+    max_chars_labels_y <- max(
+      nchar(as.character(data[[".variable_label"]])),
+      na.rm = TRUE
+    )
+
+    # When axis text is hidden for single variable, allow smaller minimum height
+    if (isTRUE(hide_axis_text_if_single_variable) && n_y == 1) {
+      min_value <- min(c(min_value, 1), na.rm = TRUE)
+    }
+
+    # Identify indep variable, excluding .value (int_plot_html data column) which
+    # is absent from summary_data_sort2 and would otherwise be falsely detected.
+    indep_vars <- colnames(data)[
+      !colnames(data) %in% c(.saros.env$summary_data_sort2, ".value")
+    ]
+
+    if (length(indep_vars) > 1) {
+      cli::cli_abort(
+        "{.arg fig_height_h_barchart2} only supports a single indep variable."
+      )
+    }
+    if (length(indep_vars) == 1) {
+      data[[indep_vars]] <-
+        stringi::stri_replace_all_regex(
+          str = as.character(data[[indep_vars]]),
+          pattern = "(.+)___.+",
+          replacement = "$1",
+          dot_all = TRUE
+        )
+    }
+
+    n_x <- if (length(indep_vars) == 1) 1L else NULL
+    n_cats_x <- if (length(indep_vars) == 1) {
+      dplyr::n_distinct(data[[indep_vars]])
+    } else {
+      NULL
+    }
+    max_chars_cats_x <- if (length(indep_vars) == 1) {
+      max(nchar(as.character(data[[indep_vars]])), na.rm = TRUE)
+    } else {
+      NULL
+    }
+    max_chars_labels_x <- if (length(indep_vars) == 1) {
+      nchar(as.character(attr(data[[indep_vars]], "label")))
+    } else {
+      NULL
+    }
+    if (length(max_chars_labels_x) == 0) {
+      max_chars_labels_x <- 0
+    }
+
+    # ---- Compute actual wrapped line counts for precise height estimation ----
+    # Instead of estimating lines from ceil(max_chars / width),
+    # simulate the actual text wrapping and count newlines.
+    if (!is.null(n_x) && n_x == 1) {
+      # Bivariate: strip labels are already wrapped in data by strip_wrap_var()
+      strip_labels <- unique(as.character(data[[".variable_label"]]))
+      # Remove NA labels to avoid max(..., na.rm = TRUE) yielding -Inf on all-NA/empty input
+      strip_labels <- strip_labels[!is.na(strip_labels)]
+      if (length(strip_labels) == 0L) {
+        actual_strip_lines <- 1L
+      } else {
+        actual_strip_lines <- max(
+          stringi::stri_count_fixed(strip_labels, "\n") + 1L,
+          na.rm = TRUE
+        )
+      }
+      # Set max_chars_labels_y so fig_height_h_barchart computes the correct max_lines_y
+      max_chars_labels_y <- actual_strip_lines * strip_width
+
+      # For indep categories (x-axis bars after coord_flip): simulate wrapping
+      if (!is.null(max_chars_cats_x)) {
+        indep_labels <- unique(as.character(data[[indep_vars]]))
+        actual_bar_lines <- count_max_wrapped_lines(indep_labels, x_axis_label_width)
+        max_chars_cats_x <- actual_bar_lines * x_axis_label_width
+      }
+    } else {
+      # Univariate: y-axis labels are wrapped at render time by scale_x_reorder
+      unique_labels <- unique(as.character(data[[".variable_label"]]))
+      actual_label_lines <- count_max_wrapped_lines(unique_labels, x_axis_label_width)
+      max_chars_labels_y <- actual_label_lines * x_axis_label_width
+    }
+
+    # For int_plot_html, height scales with n_y (facets) * n_cats_x (groups).
+    # n_cats_y = 1 (no stacked categories) and n_legend_lines = 0 (no legend).
+    if (is_int_plot_html(data)) {
+      return(
+        fig_height_h_barchart(
+          n_y = n_y,
+          n_cats_y = 1L,
+          max_chars_labels_y = max_chars_labels_y,
+          max_chars_cats_y = 0L,
+          n_x = n_x,
+          n_cats_x = n_cats_x,
+          max_chars_labels_x = max_chars_labels_x,
+          max_chars_cats_x = max_chars_cats_x,
+          freq = FALSE,
+          x_axis_label_width = x_axis_label_width,
+          strip_width = strip_width,
+          strip_angle = strip_angle,
+          main_font_size = main_font_size,
+          legend_location = legend_location,
+          n_legend_lines = 0L,
+          showNA = showNA,
+          hide_axis_text_if_single_variable = hide_axis_text_if_single_variable,
+          multiplier_hide_axis_single_var = multiplier_hide_axis_single_var,
+          legend_key_chars_equivalence = legend_key_chars_equivalence,
+          multiplier_per_horizontal_line = multiplier_per_horizontal_line,
+          multiplier_per_vertical_letter = multiplier_per_vertical_letter,
+          multiplier_per_facet = multiplier_per_facet,
+          multiplier_per_bar = multiplier_per_bar,
+          multiplier_per_legend_line = multiplier_per_legend_line,
+          fixed_constant = fixed_constant,
+          margin_in_cm = margin_in_cm,
+          figure_width_in_cm = figure_width_in_cm,
+          max = max_value,
+          min = min_value
+        )
+      )
+    }
+
+    n_cats_y <- dplyr::n_distinct(data$.category)
+    max_chars_cats_y <- max(nchar(as.character(data$.category)), na.rm = TRUE)
+
+    fig_height_h_barchart(
+      n_y = n_y,
+      n_cats_y = n_cats_y,
+      max_chars_labels_y = max_chars_labels_y,
+      max_chars_cats_y = max_chars_cats_y,
+      n_x = n_x,
+      n_cats_x = n_cats_x,
+      max_chars_labels_x = max_chars_labels_x,
+      max_chars_cats_x = max_chars_cats_x,
+      freq = freq, # In makeme
+      x_axis_label_width = x_axis_label_width, # in makeme
+      strip_width = strip_width, # In makeme
+      strip_angle = strip_angle,
+      main_font_size = main_font_size,
+      legend_location = legend_location,
+      n_legend_lines = n_legend_lines,
+      showNA = showNA,
+      hide_axis_text_if_single_variable = hide_axis_text_if_single_variable,
+      multiplier_hide_axis_single_var = multiplier_hide_axis_single_var,
+      legend_key_chars_equivalence = legend_key_chars_equivalence,
+      multiplier_per_horizontal_line = multiplier_per_horizontal_line,
+      multiplier_per_vertical_letter = multiplier_per_vertical_letter,
+      multiplier_per_facet = multiplier_per_facet,
+      multiplier_per_bar = multiplier_per_bar,
+      multiplier_per_legend_line = multiplier_per_legend_line,
+      fixed_constant = fixed_constant,
+      margin_in_cm = margin_in_cm,
+      figure_width_in_cm = figure_width_in_cm,
+      max = max_value,
+      min = min_value
+    )
+  }
+
+#' @export
+#' @rdname fig_height_h_barchart2
+fig_height_h_barchart2.ms_chart <- # mschart method
+  function(
+    plot_obj,
+    main_font_size = 7,
+    strip_angle = 0,
+    freq = FALSE,
+    x_axis_label_width = 20,
+    strip_width = 20,
+    legend_location = c("plot", "panel"),
+    n_legend_lines = NULL,
+    showNA = c("ifany", "never", "always"),
+    legend_key_chars_equivalence = 5,
+    multiplier_per_horizontal_line = NULL,
+    multiplier_per_vertical_letter = 1,
+    multiplier_per_facet = 1,
+    multiplier_per_legend_line = 1,
+    fixed_constant = 0,
+    figure_width_in_cm = 14,
+    margin_in_cm = 0,
+    max = 12,
+    min = 1,
+    multiplier_hide_axis_single_var = 0.6
+  ) {
+    # Extract data from mschart object
+    data <- plot_obj$data
+
+    if (!(inherits(data, "data.frame") && nrow(data) > 0)) {
+      cli::cli_warn(
+        "{.arg plot_obj} must be an mschart object with a nrow>0 data in it. Returning {.arg min}: {.val {min}}."
+      )
+      return(min)
+    }
+
+    # The mschart data has the same structure as ggplot data from makeme
+    # So we can use the same processing logic
 
     # TODO: Should find a more robust way to identify the indep variable
     indep_vars <- colnames(data)[
@@ -464,15 +848,28 @@ fig_height_h_barchart2 <- # Returns a numeric value
     max_value <- args$max
     min_value <- args$min
     hide_axis_text_if_single_variable <- args$hide_axis_text_if_single_variable
+    multiplier_hide_axis_single_var <- args$multiplier_hide_axis_single_var
     showNA <- args$showNA[[1]]
+
+    # Detect if axis text was actually hidden by makeme()
+    # If .variable_label_original exists, the labels were hidden
+    if (".variable_label_original" %in% colnames(data)) {
+      hide_axis_text_if_single_variable <- TRUE
+    }
 
     n_y <- dplyr::n_distinct(data$.variable_name)
     n_cats_y <- dplyr::n_distinct(data$.category)
     max_chars_cats_y <- max(nchar(as.character(data$.category)), na.rm = TRUE)
     max_chars_labels_y <- max(
-      nchar(as.character(data$.variable_label)),
+      nchar(as.character(data[[".variable_label"]])),
       na.rm = TRUE
     )
+
+    # When axis text is hidden for single variable, allow smaller minimum height
+    if (isTRUE(hide_axis_text_if_single_variable) && n_y == 1) {
+      min_value <- min(c(min_value, 1), na.rm = TRUE)
+    }
+
     n_x <- if (length(indep_vars) == 1) 1
     n_cats_x <- if (length(indep_vars) == 1) {
       dplyr::n_distinct(data[[indep_vars]])
@@ -496,15 +893,16 @@ fig_height_h_barchart2 <- # Returns a numeric value
       n_cats_x = n_cats_x,
       max_chars_labels_x = max_chars_labels_x,
       max_chars_cats_x = max_chars_cats_x,
-      freq = freq, # In makeme
-      x_axis_label_width = x_axis_label_width, # in makeme
-      strip_width = strip_width, # In makeme
+      freq = freq,
+      x_axis_label_width = x_axis_label_width,
+      strip_width = strip_width,
       strip_angle = strip_angle,
       main_font_size = main_font_size,
       legend_location = legend_location,
       n_legend_lines = n_legend_lines,
       showNA = showNA,
       hide_axis_text_if_single_variable = hide_axis_text_if_single_variable,
+      multiplier_hide_axis_single_var = multiplier_hide_axis_single_var,
       legend_key_chars_equivalence = legend_key_chars_equivalence,
       multiplier_per_horizontal_line = multiplier_per_horizontal_line,
       multiplier_per_vertical_letter = multiplier_per_vertical_letter,
@@ -518,3 +916,15 @@ fig_height_h_barchart2 <- # Returns a numeric value
       min = min_value
     )
   }
+
+#' @export
+#' @rdname fig_height_h_barchart2
+fig_height_h_barchart2.default <- function(plot_obj, ...) {
+  cli::cli_abort(
+    c(
+      "{.arg fig_height_h_barchart2} requires a plot object from {.fn makeme}.",
+      "i" = "Received object of class: {.cls {class(plot_obj)}}",
+      "i" = "Expected: {.cls gg} (from {.code type='cat_plot_html'}) or {.cls ms_chart} (from {.code type='cat_plot_docx', docx_return_object=TRUE})"
+    )
+  )
+}

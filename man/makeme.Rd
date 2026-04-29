@@ -9,7 +9,8 @@ makeme(
   dep = tidyselect::everything(),
   indep = NULL,
   type = c("auto", "cat_plot_html", "int_plot_html", "cat_table_html", "int_table_html",
-    "sigtest_table_html", "cat_prop_plot_docx", "cat_freq_plot_docx", "int_plot_docx"),
+    "sigtest_table_html", "cat_plot_docx", "int_plot_docx", "cat_table_docx",
+    "chr_table_docx"),
   ...,
   require_common_categories = TRUE,
   crowd = c("all"),
@@ -67,13 +68,14 @@ makeme(
   colour_palette = NULL,
   colour_2nd_binary_cat = "#ffffff",
   colour_na = "grey",
-  label_font_size = 6,
-  main_font_size = 6,
+  label_font_size = 9,
+  main_font_size = 9,
   strip_font_size = 6,
   legend_font_size = 6,
   font_family = "sans",
   path = NULL,
-  docx_template = NULL
+  docx_template = NULL,
+  docx_return_object = TRUE
 )
 }
 \arguments{
@@ -478,6 +480,12 @@ Path to save docx-output.}
 \verb{scalar<character>|<rdocx>-object} // \emph{default:} \code{NULL} (\code{optional})
 
 Can be either a valid character path to a reference Word file, or an existing rdocx-object in memory.}
+
+\item{docx_return_object}{\emph{Return underlying object instead of rdocx}
+
+\verb{scalar<logical>} // \emph{default:} \code{TRUE} (\code{optional})
+
+For DOCX output types: if TRUE, return the underlying object (mschart for plots, data.frame for tables) instead of embedding it in an rdocx document.}
 }
 \value{
 ggplot-object, optionally an extended ggplot object with ggiraph features.

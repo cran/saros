@@ -158,32 +158,28 @@ n_range <- function(
 #' Obtain range of N for a given `ggobj`.
 #'
 #'
-#' @param ggobj A `ggplot2`-object.
+#' Internal workhorse function for calculating N range from plot data
+#'
+#' @param data A data frame from a plot object
 #' @param glue_template_1,glue_template_2 String, for the case of a single
 #' value (1) or a range with minimum-maximum of values (2).
 #'
 #' @return Always a string.
 #' @keywords internal
-n_rng2 <- function(
-  ggobj,
+.n_rng2_impl <- function(
+  data,
   glue_template_1 = "{n}",
   glue_template_2 = "[{n[1]}-{n[2]}]"
 ) {
-  if (!ggplot2::is_ggplot(ggobj)) {
-    cli::cli_warn("{.arg ggobj} must be a ggplot2-object, returning NULL.")
-    return(NULL)
-  }
-  data <- ggobj$data
-
   # Check if the plot has the .count_per_indep_group column
   # (added by makeme() for categorical plots)
   if (!".count_per_indep_group" %in% colnames(data)) {
     # Fallback: calculate N from the number of non-NA rows in the data
     # For int_plot_html plots, check .value (and indep if present)
-    if (".value" %in% colnames(data)) {
-      # int_plot_html - check only .value and any indep variable
+    if (is_int_plot_html(data)) {
+      # int_plot_html - calculate N per variable, then get range
+      # Determine which columns to check for complete cases
       check_cols <- ".value"
-      # Add independent variable if it exists (any column that's not a label or .value)
       indep_cols <- setdiff(
         colnames(data),
         c(".variable_name", ".variable_label", ".value")
@@ -191,7 +187,21 @@ n_rng2 <- function(
       if (length(indep_cols) > 0) {
         check_cols <- c(check_cols, indep_cols)
       }
-      n <- sum(stats::complete.cases(data[, check_cols, drop = FALSE]))
+
+      # Calculate N per variable (group by .variable_name)
+      if (".variable_name" %in% colnames(data)) {
+        n_per_var <- tapply(
+          seq_len(nrow(data)),
+          data$.variable_name,
+          function(idx) {
+            sum(stats::complete.cases(data[idx, check_cols, drop = FALSE]))
+          }
+        )
+        n <- range(n_per_var, na.rm = TRUE)
+      } else {
+        # Fallback if no .variable_name column
+        n <- sum(stats::complete.cases(data[, check_cols, drop = FALSE]))
+      }
     } else {
       # Other ggplot objects - use all columns
       n <- nrow(data[stats::complete.cases(data), , drop = FALSE])
@@ -225,18 +235,58 @@ n_rng2 <- function(
   )
 }
 
-#' Provides a range (or single value) for N in a `ggplot2`-object from `makeme()`
+#' Provides a range (or single value) for N in a plot object from `makeme()`
 #'
-#' @inheritParams n_rng2
+#' @description
+#' Takes a plot object from `makeme()` and returns the sample size (N) range as a
+#' formatted string. Works with both `ggplot2` objects and `mschart` objects.
+#'
+#' @param plot_obj A plot object from `makeme()` - either a `ggplot2` object or an `ms_chart` object
+#' @param ... Additional parameters passed to the specific method
+#' @param glue_template_1,glue_template_2 String, for the case of a single
+#'   value (1) or a range with minimum-maximum of values (2).
+#'
 #' @return String.
 #' @export
 #' @examples
+#' # With ggplot2 (cat_plot_html)
 #' n_range2(makeme(data = ex_survey, dep = b_1:b_3))
+#'
+#' # With mschart (cat_plot_docx)
+#' \dontrun{
+#' n_range2(
+#'   makeme(data = ex_survey, dep = b_1:b_3,
+#'          type = "cat_plot_docx", docx_return_object = TRUE)
+#' )
+#' }
 n_range2 <- function(
-  ggobj,
+  plot_obj,
+  ...
+) {
+  # Manual dispatch to handle namespaced ggplot2 classes
+  if (inherits(plot_obj, "gg") || inherits(plot_obj, "ggplot")) {
+    return(n_range2.ggplot(plot_obj, ...))
+  } else if (inherits(plot_obj, "ms_chart")) {
+    return(n_range2.ms_chart(plot_obj, ...))
+  } else {
+    return(n_range2.default(plot_obj, ...))
+  }
+}
+
+#' @export
+#' @rdname n_range2
+n_range2.ggplot <- function(
+  plot_obj,
   glue_template_1 = "{n}",
   glue_template_2 = "[{n[1]}-{n[2]}]"
 ) {
+  if (!ggplot2::is_ggplot(plot_obj)) {
+    cli::cli_warn("{.arg plot_obj} must be a ggplot2-object, returning NULL.")
+    return(NULL)
+  }
+
+  data <- plot_obj$data
+
   args <- check_options(
     call = match.call(),
     ignore_args = .saros.env$ignore_args,
@@ -244,9 +294,52 @@ n_range2 <- function(
     default_values = formals(n_rng)
   )
 
-  n_rng2(
-    ggobj = ggobj,
+  .n_rng2_impl(
+    data = data,
     glue_template_1 = args$glue_template_1,
     glue_template_2 = args$glue_template_2
+  )
+}
+
+#' @export
+#' @rdname n_range2
+n_range2.ms_chart <- function(
+  plot_obj,
+  glue_template_1 = "{n}",
+  glue_template_2 = "[{n[1]}-{n[2]}]"
+) {
+  # Extract data from mschart object
+  data <- plot_obj$data
+
+  if (!(inherits(data, "data.frame") && nrow(data) > 0)) {
+    cli::cli_warn(
+      "{.arg plot_obj} must be an mschart object with a nrow>0 data in it. Returning NULL."
+    )
+    return(NULL)
+  }
+
+  args <- check_options(
+    call = match.call(),
+    ignore_args = .saros.env$ignore_args,
+    defaults_env = global_settings_get(fn_name = "n_rng"),
+    default_values = formals(n_rng)
+  )
+
+  .n_rng2_impl(
+    data = data,
+    glue_template_1 = args$glue_template_1,
+    glue_template_2 = args$glue_template_2
+  )
+}
+
+#' @export
+#' @rdname n_range2
+n_range2.default <- function(plot_obj, ...) {
+  cli::cli_abort(
+    c(
+      "{.arg n_range2} requires a plot object from {.fn makeme}.",
+      "i" = "Received object of class: {.cls {class(plot_obj)}}",
+      "i" = "Expected: {.cls gg} (from {.code type='cat_plot_html'}) or {.cls ms_chart} (from {.code type='cat_plot_docx', docx_return_object=TRUE})"
+    )
   )
 }

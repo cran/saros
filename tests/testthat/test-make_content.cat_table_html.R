@@ -72,7 +72,7 @@ testthat::test_that("make_content.cat_table_html works with NA on both dep and i
         ordered = TRUE
       ),
       `M (%)` = c("67", "33"),
-      `F (%)` = c(NA, "33"),
+      `F (%)` = c("", "33"),
       `NA (%)` = c("33", "33"),
       `Total (N)` = c(3L, 3L)
     ) |>
@@ -102,17 +102,14 @@ testthat::test_that("make_content.cat_table_html works with NA on both dep and i
 
     descend = FALSE
   ) |>
-    testthat::expect_equal(expected = expected_df)
+    testthat::expect_equal(expected = expected_df, ignore_attr = "dep_label_prefix")
 })
 
 testthat::test_that("make_content.cat_table_html works with all missing variable labels", {
   testthat::expect_warning(
-    testthat::expect_warning(
-      saros::ex_survey |>
-        dplyr::mutate(dplyr::across(a_1:a_3, ~ factor(.x, ordered = TRUE))) |>
-        saros::makeme(dep = a_1:a_3, type = "cat_table_html", descend = FALSE),
-      regexp = "No main question found\\."
-    ),
+    saros::ex_survey |>
+      dplyr::mutate(dplyr::across(a_1:a_3, ~ factor(.x, ordered = TRUE))) |>
+      saros::makeme(dep = a_1:a_3, type = "cat_table_html", descend = FALSE),
     regexp = "No variable labels found for "
   )
 

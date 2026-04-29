@@ -144,7 +144,9 @@ auto_detect_makeme_type <- function(data, dep, indep = NULL) {
           NULL
         },
         if (has_categorical) {
-          c(" " = "- Use {.code type = 'cat_plot_html'} for categorical variables")
+          c(
+            " " = "- Use {.code type = 'cat_plot_html'} for categorical variables"
+          )
         } else {
           NULL
         }
@@ -227,6 +229,52 @@ validate_type_specific_constraints <- function(args, data, indep, dep_pos) {
   invisible(TRUE)
 }
 
+#' Validate Variable Type Compatibility with Requested Output Type
+#'
+#' Checks that the dependent variable types are compatible with the requested
+#' output type. For example, categorical types (\code{cat_plot_*},
+#' \code{cat_table_*}) require factor/ordered/character variables, not
+#' numeric/integer.
+#'
+#' @param type Character string of the requested output type
+#' @param dep_types Character vector of classes for dependent variables
+#' @param dep_names Character vector of dependent variable names
+#'
+#' @return NULL (function used for side effects - validation errors)
+#'
+#' @keywords internal
+validate_type_variable_compatibility <- function(type, dep_types, dep_names) {
+  is_cat_type <- grepl("^cat_", type)
+  is_int_type <- grepl("^int_", type)
+
+  numeric_classes <- c("integer", "numeric", "double")
+  categorical_classes <- c("factor", "ordered", "character", "logical")
+
+  if (is_cat_type && any(dep_types %in% numeric_classes)) {
+    bad_vars <- dep_names[dep_types %in% numeric_classes]
+    bad_types <- dep_types[dep_types %in% numeric_classes]
+    n_bad <- length(bad_vars)
+    cli::cli_abort(c(
+      "x" = "{.arg type} = {.val {type}} expects categorical variables (factor, ordered, character, logical), but received {cli::qty(n_bad)} numeric variable{?s}.",
+      "i" = "{cli::qty(n_bad)} Numeric variable{?s}: {.var {bad_vars}} ({bad_types}).",
+      "i" = "Use {.code type = 'int_plot_html'} or {.code type = 'int_table_html'} for numeric variables, or convert them to factors first."
+    ))
+  }
+
+  if (is_int_type && any(dep_types %in% categorical_classes)) {
+    bad_vars <- dep_names[dep_types %in% categorical_classes]
+    bad_types <- dep_types[dep_types %in% categorical_classes]
+    n_bad <- length(bad_vars)
+    cli::cli_abort(c(
+      "x" = "{.arg type} = {.val {type}} expects numeric variables (integer, numeric, double), but received {cli::qty(n_bad)} categorical variable{?s}.",
+      "i" = "{cli::qty(n_bad)} Categorical variable{?s}: {.var {bad_vars}} ({bad_types}).",
+      "i" = "Use {.code type = 'cat_plot_html'} or {.code type = 'cat_table_html'} for categorical variables."
+    ))
+  }
+
+  invisible(NULL)
+}
+
 #' Detect Variable Types for Dependent and Independent Variables
 #'
 #' Internal helper function that examines the class of variables in the subset
@@ -265,6 +313,52 @@ detect_variable_types <- function(subset_data, dep_crwd, indep_crwd) {
   )
 }
 
+#' Compute Full Category Levels from Unfiltered Data
+#'
+#' Internal helper function that computes the complete set of category levels
+#' from the full unfiltered dataset. This ensures consistent color assignments
+#' across all crowd groups when using mesos_var/mesos_group filtering.
+#'
+#' @param data Full unfiltered data frame
+#' @param dep Character vector of dependent variable names
+#' @param showNA Character indicating whether to include NA as a level
+#'
+#' @return Character vector of all category levels across all dep variables,
+#'   or NULL if not applicable
+#'
+#' @keywords internal
+compute_full_category_levels <- function(data, dep, showNA = "ifany") {
+  # Check if all dep variables are categorical
+  dep_types <- vapply(
+    dep,
+    function(v) class(data[[v]])[1],
+    character(1)
+  )
+
+  # Only compute for factor/ordered variables (not character)
+  # Character variables don't need consistent factor levels across crowds
+  # since they're typically used in tables without color mappings
+  if (!all(dep_types %in% c("factor", "ordered"))) {
+    return(NULL) # Not applicable for non-factor variables
+  }
+
+  # Use get_common_levels to find all unique levels across dep variables
+  full_levels <- get_common_levels(data = data, col_pos = dep)
+
+  # Handle NA based on showNA setting
+  if (
+    showNA == "always" ||
+      (showNA == "ifany" &&
+        any(vapply(dep, function(v) anyNA(data[[v]]), logical(1))))
+  ) {
+    if (!"NA" %in% full_levels) {
+      full_levels <- c(full_levels, "NA")
+    }
+  }
+
+  full_levels
+}
+
 #' Generate Appropriate Data Summary Based on Variable Types
 #'
 #' Internal helper function that routes to the appropriate data summarization
@@ -275,6 +369,7 @@ detect_variable_types <- function(subset_data, dep_crwd, indep_crwd) {
 #' @param dep_crwd Character vector of dependent variable names for current crowd
 #' @param indep_crwd Character vector of independent variable names for current crowd
 #' @param args List of makeme function arguments
+#' @param full_category_levels Optional pre-computed full category levels for consistency
 #' @param ... Additional arguments passed to summarization functions
 #'
 #' @return Data summary object (type depends on variable types):
@@ -289,6 +384,7 @@ generate_data_summary <- function(
   dep_crwd,
   indep_crwd,
   args,
+  full_category_levels = NULL,
   ...
 ) {
   # Future: switch or S3
@@ -327,7 +423,8 @@ generate_data_summary <- function(
       categories_treated_as_na = args$categories_treated_as_na,
       labels_always_at_bottom = args$labels_always_at_bottom,
       labels_always_at_top = args$labels_always_at_top,
-      translations = args$translations
+      translations = args$translations,
+      full_category_levels = full_category_levels
     )
   } else {
     cli::cli_abort(c(
@@ -536,247 +633,6 @@ process_crowd_settings <- function(args) {
   args
 }
 
-#' Handle Kept and Omitted Columns for Crowds
-#'
-#' Internal helper function that processes the kept and omitted column information
-#' for crowd-based filtering and applies global hiding logic.
-#'
-#' @param args List of makeme function arguments
-#' @param kept_cols_list Named list of kept column information for each crowd
-#' @param omitted_cols_list Named list of omitted variables for each crowd
-#'
-#' @return List containing processed crowd column information with global
-#'   hiding logic applied based on hide_for_all_crowds_if_hidden_for_crowd settings
-#'
-#' @keywords internal
-handle_crowd_columns <- function(
-  args,
-  kept_cols_list,
-  omitted_cols_list,
-  kept_indep_cats_list
-) {
-  for (crwd in names(kept_cols_list)) {
-    kept_cols_tmp <- keep_cols(
-      data = args$data,
-      dep = args$dep,
-      indep = args$indep,
-      crowd = crwd,
-      mesos_var = args$mesos_var,
-      mesos_group = args$mesos_group,
-      hide_for_crowd_if_all_na = args$hide_for_crowd_if_all_na,
-      hide_for_crowd_if_valid_n_below = args$hide_for_crowd_if_valid_n_below,
-      hide_for_crowd_if_category_k_below = args$hide_for_crowd_if_category_k_below,
-      hide_for_crowd_if_category_n_below = args$hide_for_crowd_if_category_n_below,
-      hide_for_crowd_if_cell_n_below = args$hide_for_crowd_if_cell_n_below
-    )
-    omitted_cols_list[[crwd]] <- kept_cols_tmp[["omitted_vars"]]
-    kept_indep_cats_list[[crwd]] <- keep_indep_cats(
-      data = kept_cols_tmp[["data"]],
-      indep = args$indep
-    )
-  }
-  list(
-    omitted_cols_list = omitted_cols_list,
-    kept_indep_cats_list = kept_indep_cats_list
-  )
-}
-
-#' Summarize Data Based on Variable Types
-#'
-#' Internal helper function that determines the appropriate data summarization
-#' approach based on variable types and calls the corresponding function.
-#'
-#' @param args List of makeme function arguments
-#' @param subset_data Data frame subset for the current crowd
-#' @param dep_crwd Character vector of dependent variable names for current crowd
-#' @param indep_crwd Character vector of independent variable names for current crowd
-#' @param ... Additional arguments passed to summarization functions
-#'
-#' @return Modified args list with data_summary element added:
-#'   - For integer/numeric variables: calls summarize_int_cat_data()
-#'   - For factor/ordered variables: calls summarize_cat_cat_data() with full argument set
-#'
-#' @keywords internal
-summarize_data_by_type <- function(
-  args,
-  subset_data,
-  dep_crwd,
-  indep_crwd,
-  ...
-) {
-  variable_type_dep <- vapply(
-    args$dep,
-    function(v) class(subset_data[[v]])[1],
-    character(1)
-  )
-  if (all(variable_type_dep %in% c("integer", "numeric"))) {
-    args$data_summary <- rlang::exec(summarize_int_cat_data, !!!args)
-  } else if (all(variable_type_dep %in% c("factor", "ordered"))) {
-    args$data_summary <- summarize_cat_cat_data(
-      data = subset_data,
-      dep = dep_crwd,
-      indep = indep_crwd,
-      ...,
-      label_separator = args$label_separator,
-      showNA = args$showNA,
-      totals = args$totals,
-      sort_dep_by = args$sort_dep_by,
-      sort_indep_by = args$sort_indep_by,
-      descend = args$descend,
-      descend_indep = args$descend_indep,
-      data_label = args$data_label,
-      digits = args$digits,
-      add_n_to_dep_label = args$add_n_to_dep_label,
-      add_n_to_indep_label = args$add_n_to_indep_label,
-      add_n_to_label = args$add_n_to_label,
-      add_n_to_category = args$add_n_to_category,
-      hide_label_if_prop_below = args$hide_label_if_prop_below,
-      data_label_decimal_symbol = args$data_label_decimal_symbol,
-      categories_treated_as_na = args$categories_treated_as_na,
-      labels_always_at_bottom = args$labels_always_at_bottom,
-      labels_always_at_top = args$labels_always_at_top,
-      translations = args$translations
-    )
-  }
-  args
-}
-
-#' Filter and Prepare Data for a Specific Crowd
-#'
-#' Internal helper function that filters data for a specific crowd identifier,
-#' applying variable exclusions and category filtering as needed.
-#'
-#' @param data Data frame being analyzed
-#' @param args List of makeme function arguments
-#' @param crwd Character string identifying the current crowd
-#' @param omitted_cols_list Named list of omitted variables for each crowd
-#' @param kept_indep_cats_list Named list of kept independent categories for each crowd
-#'
-#' @return List with subset data and variables for the crowd, or NULL if no data remains:
-#'   - `subset_data`: Filtered data frame for the crowd
-#'   - `dep_crwd`: Character vector of dependent variables for this crowd
-#'   - `indep_crwd`: Character vector of independent variables for this crowd
-#'
-#' @details
-#' Applies the following filtering steps:
-#' - Removes omitted variables based on hiding criteria
-#' - Filters rows to match crowd membership
-#' - Applies independent category filtering if enabled
-#' - Returns NULL and warns if no data remains after filtering
-#'
-#' @keywords internal
-filter_crowd_data <- function(
-  data,
-  args,
-  crwd,
-  omitted_cols_list,
-  kept_indep_cats_list
-) {
-  omitted_vars_crwd <- omitted_cols_list[
-    c(crwd, args$hide_for_all_crowds_if_hidden_for_crowd)
-  ] |>
-    lapply(FUN = function(x) {
-      if ("omitted_vars" %in% names(x)) x["omitted_vars"]
-    }) |>
-    unlist() |>
-    unique()
-
-  dep_crwd <- args$dep[!args$dep %in% omitted_vars_crwd]
-  if (length(dep_crwd) == 0) {
-    return(NULL)
-  }
-
-  indep_crwd <- args$indep
-  if (length(indep_crwd) == 0) {
-    indep_crwd <- NULL
-  }
-
-  subset_data <- dplyr::filter(
-    data[, !colnames(data) %in% omitted_vars_crwd, drop = FALSE],
-    makeme_keep_rows(
-      data = data,
-      crwd = crwd,
-      mesos_var = args$mesos_var,
-      mesos_group = args$mesos_group
-    )
-  )
-
-  if (isTRUE(args$hide_indep_cat_for_all_crowds_if_hidden_for_crowd)) {
-    for (x in indep_crwd) {
-      subset_data <- dplyr::filter(
-        subset_data,
-        as.character(subset_data[[x]]) %in% kept_indep_cats_list[[crwd]][[x]]
-      )
-    }
-  }
-
-  if (nrow(subset_data) == 0) {
-    indep_msg <- if (is.character(args$indep)) {
-      paste0("indep=", cli::ansi_collapse(args$indep))
-    }
-
-    cli::cli_warn(c(
-      "No data left to make you {.arg {args$type}} with dep={.arg {args$dep}}, {.arg {indep_msg}}, crowd={.arg {crwd}}.",
-      i = "Skipping."
-    ))
-    return(NULL)
-    indep_msg
-  }
-
-  list(subset_data = subset_data, dep_crwd = dep_crwd, indep_crwd = indep_crwd)
-}
-
-#' Generate Output for a Specific Crowd
-#'
-#' Internal helper function that generates the final output object for a crowd
-#' by processing data summary and calling the appropriate make_content function.
-#'
-#' @param args List of makeme function arguments
-#' @param subset_data Data frame subset for the current crowd
-#' @param dep_crwd Character vector of dependent variable names for current crowd
-#' @param indep_crwd Character vector of independent variable names for current crowd
-#'
-#' @return Output object (type depends on makeme type):
-#'   - Could be plot, table, or other analysis object
-#'   - Generated by make_content() with crowd-specific arguments
-#'
-#' @details
-#' Processing steps:
-#' - Summarizes data using summarize_data_by_type()
-#' - Sets main question from variable labels
-#' - Post-processes data summary for most types
-#' - Calls make_content() to generate final output
-#'
-#' @keywords internal
-generate_crowd_output <- function(args, subset_data, dep_crwd, indep_crwd) {
-  args <- summarize_data_by_type(args, subset_data, dep_crwd, indep_crwd)
-  args$main_question <- get_main_question(
-    as.character(unique(args$data_summary[[
-      ".variable_label_prefix"
-    ]])),
-    label_separator = args$label_separator
-  )
-
-  if (!args$type %in% .saros.env$types_skip_factor_processing) {
-    args$data_summary <- process_indep_factor_levels(
-      data = args$data_summary,
-      indep = indep_crwd
-    )
-  }
-
-  args_crwd <- args
-  args_crwd$dep <- dep_crwd
-  args_crwd$indep <- indep_crwd
-
-  suppressPackageStartupMessages(
-    rlang::exec(
-      make_content,
-      type = args_crwd$type,
-      !!!args_crwd[!names(args_crwd) %in% c("type")]
-    )
-  )
-}
-
 #' Process Data for a Single Crowd
 #'
 #' Internal helper function that handles the complete processing pipeline
@@ -789,6 +645,7 @@ generate_crowd_output <- function(args, subset_data, dep_crwd, indep_crwd) {
 #' @param data Data frame being analyzed
 #' @param mesos_var Mesos-level grouping variable
 #' @param mesos_group Specific mesos group identifier
+#' @param full_category_levels Optional pre-computed full category levels for consistency
 #' @param ... Additional arguments passed to data summarization functions
 #'
 #' @return Final output object for the crowd, or NULL if no data remains:
@@ -813,6 +670,7 @@ process_crowd_data <- function(
   data,
   mesos_var,
   mesos_group,
+  full_category_levels = NULL,
   ...
 ) {
   # Calculate omitted variables for this crowd
@@ -868,14 +726,37 @@ process_crowd_data <- function(
     return(NULL)
   }
 
+  # Drop dep variables that have all-NA values in the subset
+  all_na_deps <- vapply(
+    dep_crwd,
+    function(v) all(is.na(subset_data[[v]])),
+    logical(1)
+  )
+  if (any(all_na_deps)) {
+    dropped <- dep_crwd[all_na_deps]
+    cli::cli_warn(c(
+      "Dropping {cli::qty(dropped)} variable{?s} with no non-NA data: {.var {dropped}}.",
+      i = "All values are NA after applying crowd, indep, and category filters."
+    ))
+    dep_crwd <- dep_crwd[!all_na_deps]
+    if (length(dep_crwd) == 0) {
+      return(NULL)
+    }
+  }
+
   # Detect variable types and generate data summary
   variable_types <- detect_variable_types(subset_data, dep_crwd, indep_crwd)
+
+  # Validate that variable types are compatible with the requested output type
+  validate_type_variable_compatibility(args$type, variable_types$dep, dep_crwd)
+
   args$data_summary <- generate_data_summary(
     variable_types,
     subset_data,
     dep_crwd,
     indep_crwd,
     args,
+    full_category_levels = full_category_levels,
     ...
   )
 
@@ -999,6 +880,14 @@ process_all_crowds <- function(
     args$crowd
   )
 
+  # Compute full category levels from unfiltered data for consistency across crowds
+  # This ensures that all crowd plots use the same color mapping
+  full_category_levels <- compute_full_category_levels(
+    data = data,
+    dep = args$dep,
+    showNA = args$showNA
+  )
+
   # Process each crowd
   for (crwd in names(out)) {
     out[[crwd]] <- process_crowd_data(
@@ -1009,6 +898,7 @@ process_all_crowds <- function(
       data,
       mesos_var,
       mesos_group,
+      full_category_levels = full_category_levels,
       ...
     )
   }

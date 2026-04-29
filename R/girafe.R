@@ -8,7 +8,10 @@
 #' @param label_wrap_width Integer. Number of characters fit on the axis text space before wrapping.
 #' @param interactive Boolean. Whether to produce a ggiraph-plot with interactivity (defaults to TRUE)
 #'    or a static ggplot2-plot.
-#' @param palette_codes Optional list of named character vectors with names being categories and values being colours. The final character vector of the list is taken as a final resort. Defaults to `NULL`.
+#' @param palette_codes Optional list of character vectors. Each vector contains
+#'   colours. Vectors can optionally be named, where names are categories and values
+#'   are colours. The final character vector of the list is used as a fallback.
+#'   Defaults to `NULL`.
 #' @param priority_palette_codes Optional named character of categories (as names) with corresponding colours (as values) which are used first, whereupon the remaining unspecified categories are pulled from the last vector of `palette_codes`. Defaults to `NULL`.
 #' @param ncol Optional integer or NULL.
 #' @param byrow Whether to display legend keys by row or by column.
@@ -46,54 +49,26 @@ girafe <- function(
     default_values = formals(girafe)
   )
 
-  # If in a Quarto/Rmarkdown document rendering context, avoid doing the tests below unnecessarily often?
-  if (!(rlang::is_integerish(args$char_limit))) {
-    cli::cli_abort("{.arg char_limit} must be an integer.")
-  }
-  if (!(rlang::is_integerish(args$label_wrap_width))) {
-    cli::cli_abort("{.arg label_wrap_width} must be an integer.")
-  }
-  if (!(rlang::is_integerish(args$ncol) || is.null(args$ncol))) {
-    cli::cli_abort("{.arg ncol} must be an integer or NULL.")
-  }
-  if (!(rlang::is_integerish(args$ncol) || is.null(args$ncol))) {
-    cli::cli_abort("{.arg ncol} must be an integer or NULL.")
-  }
-  if (
-    !((rlang::is_list(args$palette_codes) &&
-      all(vapply(args$palette_codes, is.character, logical(1)))) ||
-      is.null(args$palette_codes))
-  ) {
-    cli::cli_abort(
-      "{.arg palette_codes} must be NULL or a list of character vectors."
-    )
-  }
-  if (
-    !((rlang::is_character(args$priority_palette_codes)) ||
-      is.null(args$priority_palette_codes))
-  ) {
-    cli::cli_abort(
-      "{.arg priority_palette_codes} must be a character vector (possibly named) or NULL."
-    )
-  }
-  if (!(rlang::is_bool(args$interactive))) {
-    cli::cli_abort("{.arg interactive} must be boolean.")
-  }
-  if (!(rlang::is_bool(args$byrow))) {
-    cli::cli_abort("{.arg byrow} must be boolean.")
-  }
-  if (!(rlang::is_string(args$checked) || is.null(args$checked))) {
-    cli::cli_abort("{.arg checked} must be a string or NULL.")
-  }
-  if (!(rlang::is_string(args$not_checked) || is.null(args$not_checked))) {
-    cli::cli_abort("{.arg not_checked} must be a string or NULL.")
-  }
-  if (
-    !(rlang::is_string(args$colour_2nd_binary_cat) ||
-      is.null(args$colour_2nd_binary_cat))
-  ) {
-    cli::cli_abort("{.arg colour_2nd_binary_cat} must be a string or NULL.")
-  }
+  # Validate parameters
+  check_integerish(args$char_limit, min = 1, arg = "char_limit")
+  check_bool(args$interactive, arg = "interactive")
+  check_string(args$checked, null_allowed = TRUE, arg = "checked")
+  check_string(args$not_checked, null_allowed = TRUE, arg = "not_checked")
+  check_string(
+    args$colour_2nd_binary_cat,
+    null_allowed = TRUE,
+    arg = "colour_2nd_binary_cat"
+  )
+
+  # Validate palette-related parameters (includes label_wrap_width, ncol, byrow)
+  validate_palette_params(
+    palette_codes = args$palette_codes,
+    priority_palette_codes = args$priority_palette_codes,
+    label_wrap_width = args$label_wrap_width,
+    ncol = args$ncol,
+    byrow = args$byrow
+  )
+
   if (is.null(ggobj) || length(ggobj$data) == 0) {
     return(invisible(data.frame()))
   }
@@ -109,31 +84,30 @@ girafe <- function(
     }
   }
 
-  fill_var <- rlang::as_label(ggobj$mapping$fill)
+  fill_levels <- get_fill_levels(ggobj)
 
   checkbox <- FALSE
-  if (!is.null(fill_var) && fill_var != "NULL") {
-    fill_levels <-
-      if (is.factor(ggobj$data[[fill_var]])) {
-        levels(ggobj$data[[fill_var]])
-      } else {
-        unique(ggobj$data[[fill_var]])
-      }
+  priority_palette_codes <- args$priority_palette_codes
 
-    if (all(fill_levels %in% c(args$checked, args$not_checked))) {
-      checkbox <- TRUE
+  if (!is.null(fill_levels)) {
+    # Resolve colors using shared logic from girafe-utils.R
+    color_info <- resolve_category_colors(
+      cat_levels = fill_levels,
+      girafe_settings = args
+    )
+
+    checkbox <- color_info$checkbox
+    fill_levels <- color_info$cat_levels
+    priority_palette_codes <- color_info$priority_palette_codes
+
+    # Apply checkbox transformations to ggobj if needed
+    if (checkbox) {
       ggobj <- convert_to_checkbox_plot(
         ggobj,
         checked = args$checked,
         not_checked = args$not_checked,
         colour_2nd_binary_cat = args$colour_2nd_binary_cat
       )
-      # Update fill_levels to match the new order
-      if (rlang::is_string(args$colour_2nd_binary_cat)) {
-        fill_levels <- c(args$not_checked, args$checked)
-      } else {
-        fill_levels <- c(args$checked, args$not_checked)
-      }
     }
 
     ggobj <-
@@ -145,7 +119,7 @@ girafe <- function(
             ncol = args$ncol,
             byrow = args$byrow,
             label_wrap_width = args$label_wrap_width,
-            priority_palette_codes = args$priority_palette_codes
+            priority_palette_codes = priority_palette_codes
           ) +
           ggplot2::guides(
             fill = if (isTRUE(checkbox)) {
@@ -162,7 +136,13 @@ girafe <- function(
         classes = "rlang_message"
       )
 
-    if (isTRUE(interactive)) {
+    # In non-HTML knitr formats (typst, docx, pdf), return static ggplot
+    # to avoid knitr:::html_screenshot() creating leftover temp directories
+    # and to produce higher-quality native raster figures.
+    in_knitr <- isTRUE(getOption("knitr.in.progress"))
+    non_html_doc <- in_knitr && !knitr::is_html_output()
+
+    if (isTRUE(args$interactive) && !non_html_doc) {
       ggiraph::girafe(
         ggobj = ggobj,
         pointsize = args$pointsize,

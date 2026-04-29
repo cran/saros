@@ -14,8 +14,10 @@ make_content.cat_plot_html <-
         "Variables contain NA on all dep-by-indep cells. Returning an empty plot. Consider {.arg {showna_arg_str}} or check your data."
       )
       return(
-        ggplot2::ggplot() +
-          ggplot2::theme_void()
+        attach_dep_label_prefix(
+          ggplot2::ggplot() + ggplot2::theme_void(),
+          dots$main_question
+        )
       )
       showna_arg_str
     }
@@ -221,7 +223,7 @@ make_content.cat_plot_html <-
           ggplot2::position_dodge(width = 0.9, reverse = FALSE)
         },
         hjust = if (prop_family) {
-          0
+          0.5
         } else {
           if (dots$data_label_position == "center") {
             0.5
@@ -251,6 +253,7 @@ make_content.cat_plot_html <-
         name = "fill.guide",
         data_id = function(x) x,
         tooltip = function(x) x,
+        limits = levels(p_data$.category),
         drop = FALSE
       ) +
       ggiraph::scale_colour_discrete_interactive(
@@ -317,6 +320,7 @@ make_content.cat_plot_html <-
       }
     }
 
+    p <- attach_dep_label_prefix(p, dots$main_question)
     if (isFALSE(dots$vertical) && length(levels(p$data[[".category"]])) > 0) {
       p + ggplot2::coord_flip()
     } else {

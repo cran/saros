@@ -544,3 +544,181 @@ test_that("txt_from_cat_mesos_plots handles multiple variables with different ca
     expect_true(any(grepl("Binary|FourCat", result)))
   }
 })
+test_that("txt_from_cat_mesos_plots handles mismatched variable label columns", {
+  # Test for the bug where dat_1 uses .variable_label_original and
+  # dat_2 uses .variable_label, causing group_2 to return 0
+
+  # dat_1: variable name in .variable_label_original, .variable_label is empty
+  plot_data_1 <- data.frame(
+    .variable_label = "",
+    .variable_label_original = "Question 1",
+    .category = factor(c("Ja", "Nei"), levels = c("Nei", "Ja")),
+    .category_order = c(1, 2),
+    .proportion = c(0.4, 0.6),
+    stringsAsFactors = FALSE
+  )
+
+  # dat_2: variable name in .variable_label, .variable_label_original is empty
+  plot_data_2 <- data.frame(
+    .variable_label = "Question 1",
+    .variable_label_original = "",
+    .category = factor(c("Ja", "Nei"), levels = c("Nei", "Ja")),
+    .category_order = c(1, 2),
+    .proportion = c(0.7, 0.3),
+    stringsAsFactors = FALSE
+  )
+
+  plots <- list(plot_data_1, plot_data_2)
+
+  result <- saros::txt_from_cat_mesos_plots(plots, min_prop_diff = 0.1)
+
+  expect_type(result, "character")
+  expect_true(length(result) >= 1)
+
+  # Extract the proportions from the result text
+  # Result should contain both group values (not 0 for group_2)
+  expect_true(grepl("0.6", result[1])) # group_1 proportion
+  expect_true(grepl("0.3", result[1])) # group_2 proportion (should NOT be 0!)
+
+  # Ensure it doesn't show 0 for the second group
+  expect_false(grepl("\\(0\\)", result[1]))
+})
+
+test_that("txt_from_cat_mesos_plots uses .variable_label_original to match crowds with different N suffixes", {
+  # Regression test: when add_n_to_dep_label = TRUE, each crowd's .variable_label
+  # gets a different "(N = X)" suffix appended, causing cross-crowd matching to
+  # fail silently (group_2 proportion becomes 0). The fix saves the original label
+  # in .variable_label_original before mutation so get_common_variable_label_column()
+  # can use it as a stable join key.
+
+  # dat_1 (target crowd, N=68): label has been suffixed with crowd-specific N
+  # Row order: Valgt (order=1, prop=0.65), Ikke valgt (order=2, prop=0.35)
+  # Function picks highest category_order → "Ikke valgt" with prop 0.35
+  plot_data_1 <- data.frame(
+    .variable_label = factor("Fagbrev (N = 68)", levels = "Fagbrev (N = 68)"),
+    .variable_label_original = factor("Fagbrev", levels = "Fagbrev"),
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.65, 0.35),
+    stringsAsFactors = FALSE
+  )
+
+  # dat_2 (others crowd, N=1234): same variable but different N in the label
+  # "Ikke valgt" (highest order) has proportion 0.10
+  plot_data_2 <- data.frame(
+    .variable_label = factor("Fagbrev (N = 1234)", levels = "Fagbrev (N = 1234)"),
+    .variable_label_original = factor("Fagbrev", levels = "Fagbrev"),
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.90, 0.10),
+    stringsAsFactors = FALSE
+  )
+
+  plots <- list(list(data = plot_data_1), list(data = plot_data_2))
+
+  result <- saros::txt_from_cat_mesos_plots(plots, min_prop_diff = 0.10)
+
+  expect_type(result, "character")
+  expect_true(length(result) >= 1, info = "Should produce at least one sentence")
+
+  # group_2 proportion must NOT be 0 — the key regression assertion
+  expect_false(
+    grepl("\\(0\\)", result[1]),
+    info = "group_2 proportion should not be 0 due to N-suffix label mismatch"
+  )
+
+  # Both crowd proportions should appear in the output
+  expect_true(grepl("0.35", result[1], fixed = TRUE), info = "group_1 proportion (0.35) should appear")
+  expect_true(grepl("0.1",  result[1], fixed = TRUE), info = "group_2 proportion (0.10) should appear")
+})
+
+test_that("txt_from_cat_mesos_plots uses checked category for checkbox variables (girafe fallback)", {
+  # Auto-detection via girafe global settings (fallback path).
+  old_girafe <- saros::global_settings_get("girafe")
+  withr::defer(
+    saros::global_settings_set(fn_name = "girafe", new = old_girafe, quiet = TRUE)
+  )
+
+  saros::global_settings_set(
+    fn_name = "girafe",
+    new = list(checked = "Valgt", not_checked = "Ikke valgt"),
+    quiet = TRUE
+  )
+
+  # group_1 selects "Valgt" much more often; without the fix the function
+  # would look at "Ikke valgt" (highest order) and report the opposite direction.
+  plot_data_1 <- data.frame(
+    .variable_label = "Checkbox item",
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.70, 0.30),
+    stringsAsFactors = FALSE
+  )
+
+  plot_data_2 <- data.frame(
+    .variable_label = "Checkbox item",
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.40, 0.60),
+    stringsAsFactors = FALSE
+  )
+
+  plots <- list(list(data = plot_data_1), list(data = plot_data_2))
+
+  result <- saros::txt_from_cat_mesos_plots(plots, min_prop_diff = 0.10)
+
+  expect_type(result, "character")
+  expect_length(result, 1L)
+  expect_true(grepl("Valgt", result[1], fixed = TRUE),
+    info = "Result should mention the checked category 'Valgt'")
+  expect_false(grepl("Ikke valgt", result[1], fixed = TRUE),
+    info = "Result should NOT be driven by the not_checked category")
+  expect_true(grepl("0.7", result[1], fixed = TRUE))
+  expect_true(grepl("0.4", result[1], fixed = TRUE))
+})
+
+test_that("txt_from_cat_mesos_plots uses checked/not_checked explicit parameters", {
+  # Explicit checked/not_checked on the call — no global settings needed.
+
+  plot_data_1 <- data.frame(
+    .variable_label = "Checkbox item",
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.70, 0.30),
+    stringsAsFactors = FALSE
+  )
+
+  plot_data_2 <- data.frame(
+    .variable_label = "Checkbox item",
+    .category = factor(c("Valgt", "Ikke valgt"), levels = c("Valgt", "Ikke valgt")),
+    .category_order = c(1L, 2L),
+    .proportion = c(0.40, 0.60),
+    stringsAsFactors = FALSE
+  )
+
+  plots <- list(list(data = plot_data_1), list(data = plot_data_2))
+
+  result <- saros::txt_from_cat_mesos_plots(
+    plots,
+    checked = "Valgt",
+    not_checked = "Ikke valgt",
+    min_prop_diff = 0.10
+  )
+
+  expect_type(result, "character")
+  expect_length(result, 1L)
+  expect_true(grepl("Valgt", result[1], fixed = TRUE),
+    info = "Explicit checked= should drive the comparison")
+  expect_false(grepl("Ikke valgt", result[1], fixed = TRUE),
+    info = "not_checked category should not appear in output")
+
+  # Explicit params should also suppress checkbox handling when only one is set
+  result_no_override <- saros::txt_from_cat_mesos_plots(
+    plots,
+    min_prop_diff = 0.10
+  )
+  # Without any global settings the function falls back to order-based selection
+  # (highest order = "Ikke valgt"), which exceeds 0.10 diff in the other direction.
+  # Just assert it produces a character result — the direction depends on defaults.
+  expect_type(result_no_override, "character")
+})

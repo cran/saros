@@ -1,3 +1,83 @@
+#' Validate that a column-based sort references an existing column
+#'
+#' Fails fast with an informative error when `sort_by` names a column
+#' (from the allowed whitelist) that is not present in `data`.
+#' Only performs validation for scalar `sort_by`; non-scalar values
+#' (e.g. category vectors) are skipped since they are validated by
+#' [validate_sort_category()] instead.
+#'
+#' @param sort_by Character scalar, or `NULL`. The column name to sort by.
+#'   Non-scalar values are silently accepted (no column validation).
+#' @param data Data frame to check.
+#' @param allowed Character vector of whitelisted column names.
+#' @param call Calling environment for error reporting.
+#'
+#' @return `TRUE` invisibly if valid.
+#' @keywords internal
+validate_sort_column <- function(
+  sort_by,
+  data,
+  allowed = .saros.env$allowed_dep_sort_columns,
+  call = rlang::caller_env()
+) {
+  if (is.null(sort_by) || length(sort_by) != 1) return(invisible(TRUE))
+  if (!(sort_by %in% allowed)) return(invisible(TRUE))
+  if (sort_by %in% names(data)) return(invisible(TRUE))
+
+  available <- intersect(allowed, names(data))
+  available_msg <- if (length(available) > 0) {
+    cli::format_inline("Available columns: {.var {available}}.")
+  } else {
+    cli::format_inline("None of the sortable columns ({.var {allowed}}) are present in the data.")
+  }
+
+  cli::cli_abort(
+    c(
+      x = "Column {.var {sort_by}} not found in data.",
+      i = available_msg,
+      i = "Column {.var {sort_by}} may not have been computed for this output type."
+    ),
+    call = call
+  )
+}
+
+#' Validate that category-based sort references categories present in data
+#'
+#' Fails fast with an informative error when `sort_by` names one or more
+#' categories that do not exist in the `.category` column of `data`.
+#'
+#' @param sort_by Character vector of category names to sort by.
+#' @param data Data frame containing a `.category` column.
+#' @param call Calling environment for error reporting.
+#'
+#' @return `TRUE` invisibly if valid.
+#' @keywords internal
+validate_sort_category <- function(
+  sort_by,
+  data,
+  call = rlang::caller_env()
+) {
+  if (is.null(sort_by) || length(sort_by) == 0) return(invisible(TRUE))
+  # Only validate when sort_by looks like user-supplied categories
+  # (not dot-prefixed internal column/method names)
+  if (all(startsWith(sort_by, "."))) return(invisible(TRUE))
+
+  if (!".category" %in% names(data)) return(invisible(TRUE))
+
+  categories_in_data <- unique(as.character(data$.category))
+  missing <- setdiff(sort_by, categories_in_data)
+
+  if (length(missing) == 0) return(invisible(TRUE))
+
+  cli::cli_abort(
+    c(
+      x = "Sort {cli::qty(missing)} categor{?y/ies} not found in data: {.val {missing}}.",
+      i = "Available categories: {.val {categories_in_data}}."
+    ),
+    call = call
+  )
+}
+
 #' Create sorting order variables for output dataframe
 #'
 #' This module provides centralized sorting functionality to ensure consistent
@@ -74,6 +154,11 @@ add_dep_order <- function(data, sort_by, descend = FALSE) {
   if (is.null(sort_by)) {
     sort_by <- ".variable_position"
   }
+
+  # Validate early: column exists or categories exist
+
+  validate_sort_column(sort_by, data, allowed = .saros.env$allowed_dep_sort_columns)
+  validate_sort_category(sort_by, data)
 
   # Calculate base order based on sort method
 
@@ -173,6 +258,38 @@ add_dep_order <- function(data, sort_by, descend = FALSE) {
       sort_by[1],
       descend = descend
     )
+  } else if (length(sort_by) == 1 && sort_by == ".range") {
+    # Sort by range of proportions (max - min) across categories per variable
+    if (!".proportion" %in% names(data)) {
+      cli::cli_abort(
+        c(
+          x = "{.val .range} sorting requires a {.var .proportion} column.",
+          i = "This output type may not compute proportions. Use a different {.arg sort_dep_by} value."
+        )
+      )
+    }
+    # Aggregate mean proportion per (variable, category) first to handle
+    # bivariate data with multiple indep groups, then compute range per variable
+    range_map <- data |>
+      dplyr::summarize(
+        .mean_prop = mean(.data$.proportion, na.rm = TRUE),
+        .by = c(".variable_name", ".category")
+      ) |>
+      dplyr::summarize(
+        .range = {
+          vals <- .data$.mean_prop[!is.na(.data$.mean_prop)]
+          if (length(vals) < 2) 0 else max(vals) - min(vals)
+        },
+        .by = ".variable_name"
+      ) |>
+      arrange_with_order(.data$.range, descend = descend) |>
+      dplyr::mutate(order_rank = dplyr::row_number()) |>
+      dplyr::select(tidyselect::all_of(c(".variable_name", "order_rank")))
+    data <- dplyr::left_join(
+      data, range_map, by = ".variable_name", relationship = "many-to-one"
+    )
+    data$.dep_order <- data$order_rank
+    data$order_rank <- NULL
   } else if (
     length(sort_by) == 1 && all(sort_by %in% .saros.env$summary_data_sort1)
   ) {
@@ -254,6 +371,10 @@ add_indep_order <- function(
     sort_by <- ".factor_order"
   }
 
+  # Validate early: column exists or categories exist
+  validate_sort_column(sort_by, data, allowed = .saros.env$allowed_indep_sort_columns)
+  validate_sort_category(sort_by, data)
+
   # Apply ascending order column sorting if it's not ".variable_label" (which should remain in existing order)
   data$.indep_order <- if (length(sort_by) == 1 && sort_by == ".factor_order") {
     # Respect the factor order of the independent variable
@@ -282,10 +403,10 @@ add_indep_order <- function(
       calculate_indep_proportion_order(data, sort_by, indep_col, descend)
     } else if (startsWith(sort_by, ".count")) {
       # Count-based sorting
-      if (sort_by == ".count_per_indep_group") {
-        column_name <- ".count_total_indep"
+      column_name <- if (sort_by == ".count_per_indep_group") {
+        ".count_per_indep_group"
       } else {
-        column_name <- ".count"
+        ".count"
       }
       # Whitelist: allow only known safe columns for direct indep ordering
       if (column_name %in% .saros.env$allowed_indep_sort_columns) {
@@ -568,24 +689,16 @@ set_factor_levels_from_order <- function(data) {
 
   # Set category factor levels based on .category_order
   if (".category_order" %in% names(data) && is.factor(data$.category)) {
-    # Preserve full set of category levels to keep unused levels available
-    full_levels <- levels(data$.category)
-
-    present_ordered <- data |>
-      dplyr::distinct(.data$.category, .data$.category_order) |>
-      dplyr::arrange(.data$.category_order) |>
-      dplyr::pull(.data$.category) |>
-      as.character()
-
-    # Append any levels not present in the current data at the end,
-    # preserving their original order
-    remaining <- setdiff(full_levels, present_ordered)
-    new_levels <- c(present_ordered, remaining)
-
-    data$.category <- factor(
-      data$.category,
-      levels = new_levels
-    )
+    # Preserve the original full set of category levels for color consistency
+    # When some categories are missing from a subset (e.g., in mesos groups),
+    # we must maintain the same level order across all subsets to ensure
+    # consistent color mappings in plots
+    # Don't reorder the levels - just keep them as originally set
+    # This preserves color consistency when full_category_levels was used
+    # The .category_order column can still be used for DATA row ordering if needed
+    # but shouldn't affect the factor LEVEL order
+    # Simply retain existing levels without reordering
+    # The data rows will still be arranged by .category_order if that's desired elsewhere
   }
 
   data
@@ -651,7 +764,8 @@ calculate_indep_column_order <- function(
     dplyr::summarise(
       order_value = if (
         identical(column_name, ".count") ||
-          identical(column_name, ".count_total_indep")
+          identical(column_name, ".count_total_indep") ||
+          identical(column_name, ".count_per_indep_group")
       ) {
         sum(.data[[column_name]], na.rm = TRUE)
       } else {
@@ -781,6 +895,12 @@ get_target_categories <- function(data, method) {
   # - .top/.bottom pick the single highest/lowest level
   # - .upper/.lower pick the half above/below the median (odd/even aware)
   # - .mid_upper/.mid_lower include the middle level in upper/lower respectively
-  all_categories <- levels(data$.category)
+
+  # Only use categories that actually exist in the data
+  # This prevents issues when full_category_levels includes absent categories
+  all_levels <- levels(data$.category)
+  present_categories <- unique(as.character(data$.category))
+  all_categories <- all_levels[all_levels %in% present_categories]
+
   subset_vector(all_categories, method)
 }

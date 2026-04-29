@@ -9,7 +9,7 @@ testthat::test_that("chart cat_docx", {
         ex_survey |>
         makeme(
           data = _,
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           dep = paste0("b_", 1:3),
           font_family = "Calibri",
           label_font_size = 9,
@@ -23,7 +23,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -42,7 +43,7 @@ testthat::test_that("chart cat_docx", {
   testthat::expect_error(
     object = makeme(
       data = mtcars,
-      type = "cat_prop_plot_docx",
+      type = "cat_plot_docx",
       dep = c(cyl, vs, gear, carb)
     ),
     regexp = "Column `cyl` and column `vs` lack common categories"
@@ -50,7 +51,7 @@ testthat::test_that("chart cat_docx", {
   testthat::expect_error(
     object = makeme(
       data = ex_survey,
-      type = "cat_prop_plot_docx",
+      type = "cat_plot_docx",
       dep = tidyselect::matches("^[ab]")
     ),
     regexp = "Column `a_1` and column `b_1` lack common categories"
@@ -62,7 +63,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = ex_survey,
           dep = paste0("a_", 1:9),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           font_family = "Calibri",
           label_font_size = 9,
           main_font_size = 9,
@@ -74,7 +75,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -96,7 +98,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = ex_survey,
           dep = paste0("a_", 1:9),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           showNA = "never",
           font_family = "Calibri",
           label_font_size = 9,
@@ -108,7 +110,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -136,7 +139,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("p_", 1:4),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           showNA = "never",
           font_family = "Calibri",
           label_font_size = 9,
@@ -148,7 +151,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -176,7 +180,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("p_", 1:4),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           height_per_col = .3,
           height_fixed = 1,
           showNA = "never",
@@ -188,7 +192,10 @@ testthat::test_that("chart cat_docx", {
           vertical = FALSE,
           digits = 0,
           hide_label_if_prop_below = 0,
-          descend = TRUE
+          descend = TRUE,
+          height_per_col = .3,
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -216,7 +223,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("p_", 1:4),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           showNA = "never",
           font_family = "Calibri",
           label_font_size = 9,
@@ -228,7 +235,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -256,7 +264,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("p_", 1:4),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           showNA = "never",
           font_family = "Calibri",
           label_font_size = 9,
@@ -268,7 +276,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -291,7 +300,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("a_", 1:9),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           data_label = "percentage_bare",
           font_family = "Calibri",
           showNA = "never",
@@ -303,7 +312,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -326,7 +336,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("a_", 1:9),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           sort_dep_by = ".count",
           descend = FALSE,
           vertical = FALSE,
@@ -339,7 +349,8 @@ testthat::test_that("chart cat_docx", {
           digits = 0,
           hide_label_if_prop_below = 0,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -362,7 +373,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("a_", 1:9),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           sort_dep_by = ".count",
           descend = TRUE,
           vertical = FALSE,
@@ -376,7 +387,8 @@ testthat::test_that("chart cat_docx", {
           digits = 0,
           hide_label_if_prop_below = 0,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -399,7 +411,7 @@ testthat::test_that("chart cat_docx", {
         makeme(
           data = _,
           dep = paste0("b_", 1:3),
-          type = "cat_prop_plot_docx",
+          type = "cat_plot_docx",
           sort_dep_by = ".count",
 
           showNA = "never",
@@ -413,7 +425,8 @@ testthat::test_that("chart cat_docx", {
           hide_label_if_prop_below = 0,
           descend = TRUE,
           height_per_col = .3,
-          height_fixed = 1
+          height_fixed = 1,
+          docx_return_object = FALSE
         )
     },
     class = "rdocx",
@@ -437,7 +450,7 @@ testthat::test_that("chart cat_docx", {
           data = _,
           dep = paste0("b_", 1),
           indep = c("x1_sex", "x2_human"),
-          type = "cat_prop_plot_docx"
+          type = "cat_plot_docx"
         )
     },
     regexp = "Too many columns provided for `indep`"
@@ -447,3 +460,4 @@ testthat::test_that("chart cat_docx", {
   #                                filepath <- print(test,
   # file = system.file("template","test8.docx", package = "saros", mustWork = TRUE))
 })
+

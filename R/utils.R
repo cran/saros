@@ -1,5 +1,121 @@
 # Common utility functions for string and variable processing ----
 
+#' Wrap a file-writing expression with informative error handling
+#'
+#' Catches errors from file-writing operations and re-throws with
+#' actionable diagnostics (permissions, long OneDrive/SharePoint paths, etc.).
+#'
+#' @param expr An expression that writes a file.
+#' @param path Character scalar. The file path being written to.
+#' @param call The calling environment for error reporting.
+#'
+#' @return The result of `expr`, invisibly.
+#' @keywords internal
+safe_file_write <- function(expr, path, call = rlang::caller_env()) {
+  invisible(tryCatch(
+    expr,
+    error = function(cnd) {
+      hints <- character()
+      if (!dir.exists(dirname(path))) {
+        hints <- c(hints, i = "The directory {.path {dirname(path)}} does not exist.")
+      }
+      if (nchar(path) > 260L) {
+        hints <- c(
+          hints,
+          i = "The file path is {nchar(path)} characters long (> 260).",
+          i = "Long paths on SharePoint/OneDrive may cause failures. Try a shorter path."
+        )
+      }
+      if (grepl("OneDrive|SharePoint", path, ignore.case = TRUE)) {
+        hints <- c(hints, i = "The path appears to be on OneDrive/SharePoint. Check that the file is not locked by syncing.")
+      }
+      hints <- c(hints, i = "Do you have write access to {.path {dirname(path)}}?")
+      cli::cli_abort(
+        c(x = "Cannot save to {.path {path}}.", hints),
+        parent = cnd,
+        call = call
+      )
+    }
+  ))
+}
+
+#' Attach dep_label_prefix attribute to a make_content output object
+#'
+#' Attaches the main question (i.e. the label prefix of the dep variables)
+#' as an attribute `"dep_label_prefix"` on the returned object. Works for
+#' ggplot, data.frame, and mschart objects. Should not be called when returning
+#' an rdocx object.
+#'
+#' Storage location by class:
+#' - **ggplot / gg**: stored on `obj$data` when `obj$data` is a data.frame,
+#'   so the attribute survives further `+` operations. Falls back to
+#'   `attr(obj, ...)` when `obj$data` is a `waiver()` (empty `ggplot()`).
+#' - **ms_barchart**: stored on `obj$data` (consistent with ggplot).
+#' - **everything else** (data.frame, tibble, …): stored on the object itself.
+#'
+#' @param obj The object to annotate (ggplot, data.frame, mschart, etc.)
+#' @param main_question Character scalar; the dep label prefix. Must satisfy
+#'   `rlang::is_string(main_question)` and be non-empty. If not, `obj` is
+#'   returned unchanged.
+#'
+#' @return `obj`, unchanged when `main_question` is not a non-empty string,
+#'   otherwise with `"dep_label_prefix"` set in the appropriate location.
+#' @keywords internal
+attach_dep_label_prefix <- function(obj, main_question) {
+  if (rlang::is_string(main_question) && nzchar(main_question)) {
+    # For ggplot objects, store on $data so the attribute survives further
+    # `+` operations (which never replace $data).
+    # For mschart objects, store on $data for the same reason.
+    # For all other objects (data.frame, …), store on the object itself.
+    if (inherits(obj, "gg") && is.data.frame(obj$data)) {
+      attr(obj$data, "dep_label_prefix") <- main_question
+    } else if (inherits(obj, "ms_barchart") && is.data.frame(obj$data)) {
+      attr(obj$data, "dep_label_prefix") <- main_question
+    } else {
+      attr(obj, "dep_label_prefix") <- main_question
+    }
+  }
+  obj
+}
+
+#' Retrieve the dep label prefix from a saros output object
+#'
+#' Retrieves the `"dep_label_prefix"` attribute that saros attaches to every
+#' object returned by [makeme()] / `make_content.*()`. This is the main
+#' question text — the shared label prefix of all dependent variables used to
+#' produce the object.
+#'
+#' Storage location by class:
+#' - **ggplot / gg** and **ms_barchart**: attribute is stored on `obj$data`
+#'   (when `obj$data` is a data.frame) so that it survives further `+`
+#'   operations. This function reads from `obj$data` first for both classes.
+#' - **data.frame and other objects**: attribute stored directly on `obj`.
+#'
+#' @param obj Any object returned by [makeme()] or a `make_content.*()` method
+#'   (ggplot, data.frame, mschart, …).
+#'
+#' @return A character scalar: the dep label prefix if present and non-empty,
+#'   otherwise `""`.
+#'
+#' @export
+#' @examples
+#' p <- makeme(data = ex_survey, dep = b_1:b_3)
+#' get_dep_label_prefix(p)
+get_dep_label_prefix <- function(obj) {
+  is_valid <- function(x) isTRUE(nzchar(x))
+  # For ggplots and mschart, check $data first
+  if (
+    (inherits(obj, "gg") || inherits(obj, "ms_barchart")) &&
+      is.data.frame(obj$data)
+  ) {
+    val <- attr(obj$data, "dep_label_prefix", exact = TRUE)
+    if (is_valid(val)) return(val)
+  }
+  # Fallback: check the object itself (data.frame, or ggplot with waiver $data)
+  val <- attr(obj, "dep_label_prefix", exact = TRUE)
+  if (is_valid(val)) val else ""
+}
+
 #' Apply string wrapping to variables (character or factor)
 #'
 #' A utility function that applies string wrapping to both character and factor
@@ -62,6 +178,20 @@ get_data_display_column <- function(data) {
   }
 }
 
+#' Detect if data is from int_plot_html
+#'
+#' Checks if a data frame has the structure expected from int_plot_html output,
+#' which uses .value column instead of .category column.
+#'
+#' @param data Data frame to check
+#'
+#' @return Logical indicating if this is int_plot_html format
+#' @keywords internal
+is_int_plot_html <- function(data) {
+  if (is.null(data)) return(FALSE)
+  ".value" %in% colnames(data) && !".category" %in% colnames(data)
+}
+
 #' Validate single dependent variable requirement
 #'
 #' Common validation pattern for functions that require exactly one dependent variable.
@@ -73,10 +203,7 @@ get_data_display_column <- function(data) {
 #' @keywords internal
 validate_single_dep_var <- function(dep, function_name) {
   if (length(dep) > 1) {
-    rlang::abort(paste0(
-      function_name,
-      " requires exactly one dependent variable"
-    ))
+    cli::cli_abort("{.fn {function_name}} requires exactly one dependent variable.")
   }
 }
 

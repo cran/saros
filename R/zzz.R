@@ -9,13 +9,14 @@ if (!exists(".saros.env")) {
   }
 
   .saros.env$summary_data_sort1 <<-
-    c(".top", ".upper", ".mid_upper", ".lower", ".mid_lower", ".bottom")
+    c(".top", ".upper", ".mid_upper", ".lower", ".mid_lower", ".bottom", ".range")
   .saros.env$summary_data_sort2 <<-
     c(
       # Can this be constructed on the fly from class or crosstable_empty_output()? Or opposite?
       ".variable_name",
       ".variable_position",
       ".variable_label",
+      ".variable_label_original",
       ".variable_label_prefix",
       ".category",
       ".count",
@@ -54,6 +55,7 @@ if (!exists(".saros.env")) {
     c(
       ".count",
       ".count_total_indep",
+      ".count_per_indep_group",
       ".mean",
       ".median",
       ".sum_value"
@@ -99,7 +101,9 @@ if (!exists(".saros.env")) {
 
   .saros.env$ignore_args <<- c(
     "data",
+    "plot",
     "plots",
+    "filename",
     "dep",
     "indep",
     "chapter_overview",
@@ -108,6 +112,9 @@ if (!exists(".saros.env")) {
     "n_y",
     "n_cats_y",
     "ggobj",
+    "save_fns",
+    "tbl_list",
+    "chunk",
     "..."
   )
 
@@ -118,7 +125,11 @@ if (!exists(".saros.env")) {
     n_range = n_range,
     fig_height_h_barchart = fig_height_h_barchart,
     girafe = girafe,
-    txt_from_cat_mesos_plots = txt_from_cat_mesos_plots
+    ggsaver = ggsaver,
+    get_fig_title_suffix_from_ggplot = get_fig_title_suffix_from_ggplot,
+    txt_from_cat_mesos_plots = txt_from_cat_mesos_plots,
+    insert_text = insert_text,
+    crowd_tables_as_tabset = crowd_tables_as_tabset
   )
 
   for (fn_name in names(fn_opt_list)) {

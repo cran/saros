@@ -141,10 +141,13 @@ make_link.default <- function(
   args <-
     check_options(
       call = match.call(),
-      ignore_args = .saros.env$ignore_args,
+      ignore_args = c(.saros.env$ignore_args, "save_fn"),
       defaults_env = global_settings_get(fn_name = "make_link"),
       default_values = formals(make_link.default)
     )
+
+  # Use the save_fn passed as argument (not from global settings)
+  args$save_fn <- save_fn
 
   if (!rlang::is_string(args$folder)) {
     args$folder <- "."
@@ -154,7 +157,7 @@ make_link.default <- function(
   }
   if (!fs::dir_exists(args$folder)) {
     cli::cli_warn(
-      "The folder '{args$folder}' does not exist. Attempting to create it."
+      "The folder {.path {args$folder}} does not exist. Attempting to create it."
     )
     fs::dir_create(args$folder)
   }
@@ -166,21 +169,13 @@ make_link.default <- function(
 
   # save_fn <- args$save_fn
 
-  tryCatch(
+  safe_file_write(
     {
       if (!file.exists(path)) {
         args$save_fn(data, path)
       }
       I(paste0(args$link_prefix, path, args$link_suffix))
     },
-    error = function(cnd) {
-      # ={data}
-      cli::cli_warn(
-        c(
-          x = "Function {rlang::call_name(quote(safe_fn()))} failed with arguments {.arg path}={path}, {.arg data} is {.obj_type_friendly {data}}."
-        ),
-        parent = cnd
-      )
-    }
+    path = path
   )
 }

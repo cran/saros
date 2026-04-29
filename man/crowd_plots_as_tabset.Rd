@@ -9,7 +9,8 @@ crowd_plots_as_tabset(
   plot_type = c("cat_plot_html", "int_plot_html", "auto"),
   save = FALSE,
   fig_height = NULL,
-  fig_height_int_default = 6
+  fig_height_int_default = 6,
+  pagebreak = c("never", "auto", "always")
 )
 }
 \arguments{
@@ -31,6 +32,13 @@ If \code{NULL} (default), height is calculated automatically based on \code{plot
 
 \item{fig_height_int_default}{Numeric. Default height for interval plots when
 auto-calculation is not available (default: 6 inches).}
+
+\item{pagebreak}{Character. Controls page break insertion between plots:
+\itemize{
+\item \code{"never"} (default): Never insert page breaks
+\item \code{"auto"}: Insert page breaks for non-HTML/non-Typst formats only
+\item \code{"always"}: Always insert page breaks between plots
+}}
 }
 \value{
 Invisibly returns \code{NULL}. The function's purpose is its side effect

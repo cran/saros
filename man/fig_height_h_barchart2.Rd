@@ -2,10 +2,15 @@
 % Please edit documentation in R/fig_height_h_barchart.R
 \name{fig_height_h_barchart2}
 \alias{fig_height_h_barchart2}
+\alias{fig_height_h_barchart2.ggplot}
+\alias{fig_height_h_barchart2.ms_chart}
+\alias{fig_height_h_barchart2.default}
 \title{Estimate figure height for a horizontal bar chart}
 \usage{
-fig_height_h_barchart2(
-  ggobj,
+fig_height_h_barchart2(plot_obj, ...)
+
+fig_height_h_barchart2.ggplot(
+  plot_obj,
   main_font_size = 7,
   strip_angle = 0,
   freq = FALSE,
@@ -22,16 +27,44 @@ fig_height_h_barchart2(
   fixed_constant = 0,
   figure_width_in_cm = 14,
   margin_in_cm = 0,
-  max = 8,
-  min = 1
+  max = 12,
+  min = 1,
+  multiplier_hide_axis_single_var = 0.6
 )
+
+fig_height_h_barchart2.ms_chart(
+  plot_obj,
+  main_font_size = 7,
+  strip_angle = 0,
+  freq = FALSE,
+  x_axis_label_width = 20,
+  strip_width = 20,
+  legend_location = c("plot", "panel"),
+  n_legend_lines = NULL,
+  showNA = c("ifany", "never", "always"),
+  legend_key_chars_equivalence = 5,
+  multiplier_per_horizontal_line = NULL,
+  multiplier_per_vertical_letter = 1,
+  multiplier_per_facet = 1,
+  multiplier_per_legend_line = 1,
+  fixed_constant = 0,
+  figure_width_in_cm = 14,
+  margin_in_cm = 0,
+  max = 12,
+  min = 1,
+  multiplier_hide_axis_single_var = 0.6
+)
+
+fig_height_h_barchart2.default(plot_obj, ...)
 }
 \arguments{
-\item{ggobj}{\code{ggplot2}-object}
+\item{plot_obj}{A plot object from \code{makeme()} - either a \code{ggplot2} object or an \code{ms_chart} object}
+
+\item{...}{Additional parameters passed to the specific method (\code{fig_height_h_barchart2.ggplot} or \code{fig_height_h_barchart2.ms_chart})}
 
 \item{main_font_size}{Numeric. Font size for the main text.}
 
-\item{strip_angle}{Integer. Angle of the strip text.}
+\item{strip_angle}{Numeric. Angle of the strip text.}
 
 \item{freq}{Logical. If TRUE, frequency plot with categories next to each other. If FALSE (default), proportion plot with stacked categories.}
 
@@ -62,14 +95,25 @@ fig_height_h_barchart2(
 \item{max}{Numeric. Maximum height.}
 
 \item{min}{Numeric. Minimum height.}
+
+\item{multiplier_hide_axis_single_var}{Numeric. Multiplier to reduce panel height when hiding axis text for single variable (default 0.6).}
 }
 \value{
 Numeric value representing the estimated height of the figure.
 }
 \description{
 Taking an object from \code{makeme()}, this function estimates the height of a
-figure for a horizontal bar chart.
+figure for a horizontal bar chart. Works with both ggplot2 and mschart objects.
 }
 \examples{
+# With ggplot2 (cat_plot_html)
 fig_height_h_barchart2(makeme(data = ex_survey, dep = b_1:b_2, indep = x1_sex))
+
+# With mschart (cat_plot_docx)
+\dontrun{
+fig_height_h_barchart2(
+  makeme(data = ex_survey, dep = b_1:b_2,
+         type = "cat_plot_docx", docx_return_object = TRUE)
+)
+}
 }

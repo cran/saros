@@ -1,22 +1,77 @@
-get_variable_label_column <- function(data) {
-  # Use original variable label if available (when hide_axis_text_if_single_variable = TRUE)
-  if (
-    any(colnames(data) == ".variable_label_original") &&
-      all(data$.variable_label == "")
-  ) {
-    ".variable_label_original"
-  } else {
-    ".variable_label"
+get_common_variable_label_column <- function(dat_1, dat_2) {
+  # Determine which variable label column to use based on BOTH datasets
+  # Prefer a column that has non-empty values in BOTH datasets
+
+  # Check .variable_label_original in both datasets.
+  # This is preferred over .variable_label for cross-crowd matching because
+  # add_n_to_label() appends a crowd-specific "(N = X)" suffix to
+  # .variable_label, making it differ between crowds even for the same
+  # variable. .variable_label_original retains the pre-suffix value and is
+  # therefore a stable join key.
+  dat_1_has_original <- ".variable_label_original" %in%
+    colnames(dat_1) &&
+    any(nchar(trimws(as.character(dat_1$.variable_label_original))) > 0, na.rm = TRUE)
+  dat_2_has_original <- ".variable_label_original" %in%
+    colnames(dat_2) &&
+    any(nchar(trimws(as.character(dat_2$.variable_label_original))) > 0, na.rm = TRUE)
+
+  # Prefer .variable_label_original when BOTH datasets have it — this avoids
+  # the "(N = X)" mismatch that causes zero-proportion lookups.
+  if (dat_1_has_original && dat_2_has_original) {
+    return(list(
+      var_col = ".variable_label_original",
+      dat_1 = dat_1,
+      dat_2 = dat_2
+    ))
   }
+
+  # Check .variable_label in both datasets
+  dat_1_has_variable_label <- ".variable_label" %in%
+    colnames(dat_1) &&
+    any(nchar(trimws(as.character(dat_1$.variable_label))) > 0, na.rm = TRUE)
+  dat_2_has_variable_label <- ".variable_label" %in%
+    colnames(dat_2) &&
+    any(nchar(trimws(as.character(dat_2$.variable_label))) > 0, na.rm = TRUE)
+
+  # Fall back to .variable_label if BOTH datasets have values there
+  if (dat_1_has_variable_label && dat_2_has_variable_label) {
+    return(list(var_col = ".variable_label", dat_1 = dat_1, dat_2 = dat_2))
+  }
+
+  # If one dataset has .variable_label and the other has .variable_label_original,
+  # copy values to make them comparable
+  if (
+    dat_1_has_original &&
+      !dat_1_has_variable_label &&
+      dat_2_has_variable_label &&
+      !dat_2_has_original
+  ) {
+    # Copy dat_1's .variable_label_original to .variable_label
+    dat_1$.variable_label <- dat_1$.variable_label_original
+    return(list(var_col = ".variable_label", dat_1 = dat_1, dat_2 = dat_2))
+  }
+
+  if (
+    dat_2_has_original &&
+      !dat_2_has_variable_label &&
+      dat_1_has_variable_label &&
+      !dat_1_has_original
+  ) {
+    # Copy dat_2's .variable_label_original to .variable_label
+    dat_2$.variable_label <- dat_2$.variable_label_original
+    return(list(var_col = ".variable_label", dat_1 = dat_1, dat_2 = dat_2))
+  }
+
+  # Fallback: prefer .variable_label
+  return(list(var_col = ".variable_label", dat_1 = dat_1, dat_2 = dat_2))
 }
 
 get_prop_for_highest_categories <- function(
   plot_data,
   var,
-  selected_categories
+  selected_categories,
+  var_col
 ) {
-  var_col <- get_variable_label_column(plot_data)
-
   data.frame(
     var = var,
     value = plot_data |>
@@ -50,6 +105,12 @@ get_prop_for_highest_categories <- function(
 #' @param selected_categories_last_split Character. Separator for the last item when
 #'   listing multiple categories (default " or ").
 #' @param fallback_string Character. String to return when validation fails (default `character()`).
+#' @param checked,not_checked Optional string. When the categories of a variable exactly match
+#'   these two values, the comparison is always made on `checked` — mirroring the visual convention
+#'   in the bar chart where the checked category is rendered in colour on the left.
+#'   Defaults to `NULL`; when `NULL`, the function tries to auto-detect the values from
+#'   `global_settings_get("girafe")$checked` / `$not_checked`; if those are also `NULL`,
+#'   checkbox handling is disabled and normal order-based category selection applies.
 #' @param reverse Logical. If TRUE, reverses the order of the output text summaries (default FALSE).
 #' @param glue_str_pos Character vector. Templates for positive differences (group_1 > group_2).
 #'   Available placeholders: `{var}`, `{group_1}`, `{group_2}`, `{selected_categories}`.
@@ -62,6 +123,16 @@ get_prop_for_highest_categories <- function(
 #' @details
 #' The function compares proportions between two groups for each variable in the plot data.
 #' One template is randomly selected from the provided vectors for variety in output text.
+#'
+#' **Checkbox (checked/not_checked) variables**: When `checked` and `not_checked` are both
+#' strings, any variable whose categories exactly match that pair is treated as a checkbox
+#' variable.  For such variables the comparison is always made on the `checked` category,
+#' regardless of `flip_to_lowest_categories`.  This mirrors the visual convention in the bar
+#' chart where the checked category is rendered in colour on the left — the semantically
+#' meaningful side — even though its `.category_order` may not be the highest.
+#' If `checked`/`not_checked` are `NULL`, the function tries to auto-detect them from
+#' `global_settings_get("girafe")$checked` / `$not_checked`; if those are also `NULL`,
+#' checkbox handling is disabled.
 #'
 #' @examples
 #' \dontrun{
@@ -102,6 +173,8 @@ txt_from_cat_mesos_plots <- function(
   min_prop_diff = .10,
   n_highest_categories = 1,
   flip_to_lowest_categories = FALSE,
+  checked = NULL,
+  not_checked = NULL,
   digits = 2,
   selected_categories_last_split = " or ",
   fallback_string = character(),
@@ -145,6 +218,21 @@ txt_from_cat_mesos_plots <- function(
   # Re-insert plots after check_options (like data in other functions)
   args$plots <- plots
 
+  check_string(args$checked, null_allowed = TRUE, arg = "checked")
+  check_string(args$not_checked, null_allowed = TRUE, arg = "not_checked")
+
+  # Auto-detect checked/not_checked from girafe global settings when not
+  # provided explicitly or via txt_from_cat_mesos_plots global settings.
+  if (is.null(args$checked) || is.null(args$not_checked)) {
+    girafe_fallback <- global_settings_get("girafe")
+    if (is.null(args$checked)) {
+      args$checked <- girafe_fallback$checked
+    }
+    if (is.null(args$not_checked)) {
+      args$not_checked <- girafe_fallback$not_checked
+    }
+  }
+
   # Validate plots argument
   if (!is.list(args$plots)) {
     cli::cli_warn(
@@ -164,6 +252,33 @@ txt_from_cat_mesos_plots <- function(
       )
     )
     return(args$fallback_string)
+  }
+
+  # Check if user passed table output instead of plot output
+  # Data frames with the right columns (.category_order, .proportion, etc.)
+  # are allowed as direct input, but pivoted table output from cat_table_html
+  # lacks these columns and should be rejected early with a clear message.
+  non_null_plots <- Filter(Negate(is.null), args$plots)
+  if (length(non_null_plots) > 0) {
+    first_elem <- non_null_plots[[1]]
+    if (
+      inherits(first_elem, "data.frame") &&
+        !ggplot2::is_ggplot(first_elem) &&
+        !all(c(".category_order", ".proportion", ".category") %in%
+          colnames(first_elem))
+    ) {
+      cli::cli_abort(c(
+        "{.arg plots} contains data frames (table output), not ggplot objects.",
+        "i" = paste0(
+          "{.fn txt_from_cat_mesos_plots} expects plot output ",
+          "(e.g. from {.code type = \"cat_plot_html\"})."
+        ),
+        "i" = paste0(
+          "Table output (e.g. from {.code type = \"cat_table_html\"}) ",
+          "is not supported by this function."
+        )
+      ))
+    }
   }
 
   # Check that each element has a data component
@@ -215,7 +330,12 @@ txt_from_cat_mesos_plots <- function(
   }
 
   # Use original variable label if available (when hide_axis_text_if_single_variable = TRUE)
-  var_col <- get_variable_label_column(dat_1)
+  # Check both datasets to ensure we use a column that works for both
+  # This may normalize the datasets to use the same column
+  normalized <- get_common_variable_label_column(dat_1, dat_2)
+  var_col <- normalized$var_col
+  dat_1 <- normalized$dat_1
+  dat_2 <- normalized$dat_2
 
   # Get unique variables to process
   unique_vars <- dat_1[[var_col]] |>
@@ -232,9 +352,22 @@ txt_from_cat_mesos_plots <- function(
 
     n_categories <- nrow(var_categories)
 
-    # Only apply n_highest_categories if there are more categories than the threshold
-    # This prevents summing all categories when there are only 2
-    if (n_categories <= args$n_highest_categories) {
+    # Detect checkbox scenario: when the variable's categories exactly match the
+    # checked/not_checked pair from girafe global settings, always compare on the
+    # checked category.  In the bar chart, checked is rendered to the LEFT in colour
+    # (the visually prominent position), but its .category_order is not necessarily
+    # the highest, so the normal order-based selection would pick not_checked instead.
+    is_checkbox_var <- rlang::is_string(args$checked) &&
+      rlang::is_string(args$not_checked) &&
+      setequal(
+        as.character(var_categories$.category),
+        c(args$checked, args$not_checked)
+      )
+
+    if (is_checkbox_var) {
+      # For checkbox variables, always report on the checked category only.
+      selected_categories <- as.character(args$checked)
+    } else if (n_categories <= args$n_highest_categories) {
       # For variables with few categories, use only the highest/lowest single category
       selected_categories <- var_categories |>
         dplyr::filter(
@@ -278,7 +411,8 @@ txt_from_cat_mesos_plots <- function(
         get_prop_for_highest_categories(
           plot_data = .x,
           var = var,
-          selected_categories = selected_categories
+          selected_categories = selected_categories,
+          var_col = var_col
         )
       }) |>
       dplyr::bind_rows(.id = "group") |>
